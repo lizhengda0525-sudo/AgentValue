@@ -1,0 +1,45 @@
+{
+  "name": "agent-vault",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": ">=11 <12"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lizhengda0525-sudo/AgentValue.git"
+  },
+  "description": "本地 Skill、Prompt 与图片实验收藏库",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "start": "electron .",
+    "launch": "pnpm build && pnpm start",
+    "test": "node --test tests/*.test.mjs",
+    "test:ui": "node scripts/smoke.mjs",
+    "test:github": "node scripts/github-smoke.mjs",
+    "format:check": "prettier --check src electron scripts tests package.json tsconfig.json vite.config.ts",
+    "package": "pnpm build && node scripts/package.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "^0.577.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "yaml": "^2.8.2"
+  },
+  "devDependencies": {
+    "@electron/packager": "^19.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "electron": "44.3.0",
+    "esbuild": "^0.28.2",
+    "playwright": "^1.58.2",
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1"
+  }
+}

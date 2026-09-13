@@ -1,0 +1,139 @@
+/* Keep decorative tones soft, while text and controls remain readable. */
+.page-heading p,
+.eyebrow,
+.today,
+.breadcrumb,
+.offline-badge,
+.stat-card small,
+.nav-label,
+.local-note,
+.local-note p,
+.brand small,
+.workspace small,
+.nav .count,
+.version {
+  color: #787583;
+}
+.hero-label,
+.hero-copy p {
+  color: #81708f;
+}
+.hero-button,
+.link {
+  color: #7561bb;
+}
+.small-empty strong,
+.image-empty-strip strong {
+  color: #74667f;
+}
+.small-empty p,
+.image-empty-strip p {
+  color: #8b7d96;
+}
+.link.muted {
+  color: #87788f;
+}
+.card-excerpt,
+.card-footer,
+.image-meta,
+.select-inline,
+.select-inline select,
+.filter-tabs button,
+.detail-meta,
+.settings-card p,
+.settings-card label,
+.settings-card > small,
+.settings-version {
+  color: #807387;
+}
+.tags > span {
+  color: #7a678c;
+  background: #f0eaf7;
+}
+.card-body h3 {
+  color: #4b3f56;
+}
+.copy-button {
+  color: #806298;
+}
+.empty h3 {
+  color: #776187;
+}
+.empty p {
+  color: #897994;
+}
+.form label,
+.import-body > label {
+  color: #705a80;
+}
+.form input,
+.form textarea,
+.form select,
+.import-body input:not([type='checkbox']) {
+  color: #584466;
+}
+.form input::placeholder,
+.form textarea::placeholder,
+.import-body input::placeholder {
+  color: #9b89a9;
+}
+.modal-header p,
+.modal-footer > span,
+.subtle,
+.form-divider small,
+.dropzone,
+.dropzone > small {
+  color: #94819f;
+}
+.form-divider,
+.upload-group > label,
+.import-hint h3,
+.scan-item strong {
+  color: #82658f;
+}
+.import-hint p,
+.import-body small,
+.scan-item small,
+.scan-list > p {
+  color: #947ca1;
+}
+.detail-title h1 {
+  color: #54405f;
+}
+.detail-section h3,
+.drawer-header > span {
+  color: #81618e;
+}
+.prompt-code {
+  color: #695273;
+  background: #f8f4fb;
+}
+.preserve,
+.source-box strong,
+.source-box small,
+.generation-top strong,
+.generation-parameters,
+.generation summary,
+.section-empty,
+.file-tree div {
+  color: #887090;
+}
+.detail-meta,
+.danger-zone,
+.outputs span,
+.modal-footer > span {
+  color: #927e9c;
+}
+.source-box,
+.source-box small {
+  color: #8b709a;
+}
+.toast {
+  color: #796083;
+}
+.status-pill {
+  color: #53826a;
+}
+.form-error {
+  color: #a44966;
+}

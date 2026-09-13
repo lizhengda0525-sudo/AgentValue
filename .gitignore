@@ -1,0 +1,17 @@
+node_modules/
+dist/
+release/
+artifacts/
+*.log
+.test-data/
+.agentvault/
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.DS_Store
+Thumbs.db
