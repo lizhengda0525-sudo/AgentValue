@@ -47,6 +47,10 @@ pnpm test:ui
 
 CI 在 Windows 上构建、运行数据测试、打包，再验证打包后的真实窗口流程。成功构建会上传便携版 artifact；正式可下载版本位于 Releases。
 
+## 发布新版本
+
+更新 `package.json` 的版本号并推送 main，等待 Windows CI 通过，为该提交创建并推送 `vX.Y.Z` 标签。在 Actions 中手动运行 **Publish tested Windows release**，填写标签和对应成功构建的 Run ID。流程会核对提交、主分支和构建来源，下载已测试的产物，生成 ZIP 与 SHA-256 校验文件并发布 Release。已发布版本不会被覆盖；新的版本请使用新标签。
+
 ## 数据与权限
 
 Git 共享程序源码，不同步个人收藏。需要分享已有资产时，使用设置中的完整备份；另一位使用者在退出应用后按照 README 恢复。不要将 `.agentvault`、数据库、个人图片、备份或凭据提交到仓库。

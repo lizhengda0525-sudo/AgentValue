@@ -1,0 +1,72 @@
+name: Publish tested Windows release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag, for example v0.1.0
+        required: true
+        type: string
+      run_id:
+        description: Successful Windows build run ID for the same commit
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      BUILD_RUN: ${{ inputs.run_id }}
+    steps:
+      - name: Validate release inputs
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw 'Use a version tag such as v0.1.0' }
+          if ($env:BUILD_RUN -notmatch '^\d+$') { throw 'Build run ID must be numeric' }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+      - name: Verify and download the tested build
+        shell: pwsh
+        run: |
+          $run = gh api "repos/$env:GH_REPO/actions/runs/$env:BUILD_RUN" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect build run' }
+          $sha = git rev-parse HEAD
+          if ($run.conclusion -ne 'success' -or $run.head_sha -ne $sha -or $run.path -ne '.github/workflows/windows.yml' -or $run.event -ne 'push' -or $run.head_branch -ne 'main' -or $run.head_repository.full_name -ne $env:GH_REPO) { throw 'Release requires a successful trusted main build at the tag commit' }
+          gh run download $env:BUILD_RUN --name AgentVault-windows-x64 --dir release/AgentVault-win32-x64
+          if ($LASTEXITCODE -ne 0) { throw 'Artifact download failed' }
+          if (-not (Test-Path 'release/AgentVault-win32-x64/AgentVault.exe')) { throw 'Missing executable' }
+      - name: Archive and publish
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $version = $env:RELEASE_TAG.Substring(1)
+          $name = "AgentVault-$version-windows-x64.zip"
+          $source = Join-Path $env:GITHUB_WORKSPACE 'release/AgentVault-win32-x64'
+          $archive = Join-Path $env:GITHUB_WORKSPACE "release/$name"
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($source, $archive, [System.IO.Compression.CompressionLevel]::Optimal, $true)
+          $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $name" | Set-Content release/SHA256SUMS.txt -Encoding ascii
+          gh release view $env:RELEASE_TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            $draft = gh release view $env:RELEASE_TAG --json isDraft --jq .isDraft
+            if ($draft -ne 'true') { throw 'Release is already published; use a new version tag' }
+            gh release upload $env:RELEASE_TAG $archive release/SHA256SUMS.txt --clobber
+            if ($LASTEXITCODE -ne 0) { throw 'Asset upload failed' }
+            gh release edit $env:RELEASE_TAG --draft=false --latest
+          } else {
+            gh release create $env:RELEASE_TAG $archive release/SHA256SUMS.txt --verify-tag --title "AgentVault $env:RELEASE_TAG - Windows portable" --notes 'Download and fully extract the Windows x64 ZIP, then run AgentVault.exe. Keep all accompanying files. No Node.js or Codex installation is required. Git is required for GitHub Skill import. See README and CONTRIBUTING for source setup and collaboration.' --latest
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }
