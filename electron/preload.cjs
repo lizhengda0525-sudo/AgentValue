@@ -17,6 +17,9 @@ const allowed = new Set([
   'checkUpdate',
   'updateSkill',
   'backup',
+  'inspectBackup',
+  'restoreBackup',
+  'manageImage',
 ]);
 contextBridge.exposeInMainWorld('vault', {
   call: async (operation, input) => {

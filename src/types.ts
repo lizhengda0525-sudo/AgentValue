@@ -3,6 +3,7 @@ export type Media = {
   name: string;
   role: 'reference' | 'output';
   url: string;
+  thumbnail: string;
   generation_id: string | null;
 };
 export type Generation = {
@@ -20,6 +21,7 @@ export type Generation = {
 export type Prompt = {
   id: string;
   kind: 'text' | 'image';
+  cover_id: string | null;
   title: string;
   content: string;
   category: string;
@@ -52,6 +54,14 @@ export type State = { prompts: Prompt[]; skills: Skill[]; root: string; schema: 
 export type Scan = {
   token: string;
   candidates: { key: string; name: string; description: string; count: number }[];
+};
+export type BackupPreview = {
+  root: string;
+  schema: number;
+  createdAt: string;
+  verified: boolean;
+  bytes: number;
+  counts: { prompts: number; images: number; skills: number; generations: number };
 };
 declare global {
   interface Window {

@@ -11,6 +11,7 @@ const {
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { Vault } = require('./store.cjs');
+const { thumbnailService } = require('./thumbnails.cjs');
 const fs = require('node:fs');
 protocol.registerSchemesAsPrivileged([
   {
@@ -21,6 +22,7 @@ protocol.registerSchemesAsPrivileged([
 let vault,
   win,
   backupRunning = false;
+let activeCalls = 0;
 const isolatedData = process.env.AGENTVAULT_DATA_DIR;
 if (isolatedData) app.setPath('userData', path.join(isolatedData, 'electron'));
 if (!app.requestSingleInstanceLock()) {
@@ -37,11 +39,14 @@ if (!app.requestSingleInstanceLock()) {
     .whenReady()
     .then(() => {
       vault = new Vault(isolatedData || path.join(app.getPath('home'), '.agentvault'));
+      const thumbnail = thumbnailService(vault);
       protocol.handle('vault', async (request) => {
         try {
           const url = new URL(request.url);
           if (url.hostname !== 'media') return new Response('Not found', { status: 404 });
-          const file = vault.media(url.pathname.slice(1));
+          const file = url.searchParams.has('thumbnail')
+            ? await thumbnail(url.pathname.slice(1))
+            : vault.media(url.pathname.slice(1));
           return net.fetch(pathToFileURL(file).href);
         } catch {
           return new Response('Not found', { status: 404 });
@@ -50,9 +55,10 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('vault:call', async (event, operation, input = {}) => {
         if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame)
           throw new Error('无效来源');
+        activeCalls++;
         try {
-          if (backupRunning && !['state', 'copy', 'chooseImages'].includes(operation))
-            throw new Error('正在备份，请稍后再试');
+          if (backupRunning && !['state'].includes(operation))
+            throw new Error('正在备份或恢复，请稍后再试');
           let data;
           switch (operation) {
             case 'state':
@@ -64,6 +70,26 @@ if (!app.requestSingleInstanceLock()) {
             case 'addGeneration':
               data = vault.addGeneration(input);
               break;
+            case 'manageImage': {
+              if (input.action === 'delete') {
+                const result = await dialog.showMessageBox(win, {
+                  type: 'question',
+                  buttons: ['取消', '移除图片'],
+                  defaultId: 0,
+                  cancelId: 0,
+                  message: '从这条记录中移除图片？',
+                  detail: '其他图片和实验快照会保留。恢复该图片关联需使用之前的备份。',
+                  noLink: true,
+                });
+                if (result.response !== 1) {
+                  data = false;
+                  break;
+                }
+                if (backupRunning) throw new Error('正在备份或恢复，请稍后再试');
+              }
+              data = vault.manageImage(input);
+              break;
+            }
             case 'favorite':
               vault.favorite(input.kind, input.id);
               break;
@@ -79,6 +105,7 @@ if (!app.requestSingleInstanceLock()) {
                 noLink: true,
               });
               if (result.response === 1) {
+                if (backupRunning) throw new Error('正在备份或恢复，请稍后再试');
                 vault.remove(input.kind, input.id);
                 data = true;
               } else data = false;
@@ -141,17 +168,43 @@ if (!app.requestSingleInstanceLock()) {
               data = await vault.updateSkill(input.id);
               break;
             case 'backup': {
-              const result = await dialog.showOpenDialog(win, {
-                title: '选择备份保存位置',
-                properties: ['openDirectory', 'createDirectory'],
-              });
-              if (!result.canceled) {
-                backupRunning = true;
-                try {
+              if (activeCalls > 1) throw new Error('请等待当前操作完成后再备份');
+              if (vault.busy.size) throw new Error('Skill 正在更新，请稍后备份');
+              backupRunning = true;
+              try {
+                const result = await dialog.showOpenDialog(win, {
+                  title: '选择备份保存位置',
+                  properties: ['openDirectory', 'createDirectory'],
+                });
+                if (!result.canceled) {
                   data = await vault.exportBackup(result.filePaths[0]);
-                } finally {
-                  backupRunning = false;
                 }
+              } finally {
+                backupRunning = false;
+              }
+              break;
+            }
+            case 'inspectBackup': {
+              if (activeCalls > 1) throw new Error('请等待当前操作完成后再校验备份');
+              backupRunning = true;
+              try {
+                const result = await dialog.showOpenDialog(win, {
+                  title: '选择包含 manifest.json 的备份文件夹',
+                  properties: ['openDirectory'],
+                });
+                data = result.canceled ? null : vault.inspectBackup(result.filePaths[0]);
+              } finally {
+                backupRunning = false;
+              }
+              break;
+            }
+            case 'restoreBackup': {
+              if (activeCalls > 1) throw new Error('请等待当前操作完成后再恢复');
+              backupRunning = true;
+              try {
+                data = await vault.restoreBackup();
+              } finally {
+                backupRunning = false;
               }
               break;
             }
@@ -161,6 +214,8 @@ if (!app.requestSingleInstanceLock()) {
           return { ok: true, data };
         } catch (error) {
           return { ok: false, error: error.message || '操作失败，请重试' };
+        } finally {
+          activeCalls--;
         }
       });
       win = new BrowserWindow({

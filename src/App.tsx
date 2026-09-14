@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   Archive,
   ArrowDownToLine,
@@ -33,12 +33,17 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import type { Media, Prompt, Scan, Skill, State } from './types';
+import { ModalShell } from './ModalShell';
+import { TemplateForm, RestoreForm, ImageTools } from './AssetTools';
+import { templateVariables, resolveTemplate } from './template';
+import type { BackupPreview, Media, Prompt, Scan, Skill, State } from './types';
 
 type Page = 'home' | 'skills' | 'text' | 'image' | 'settings';
 type Modal =
   | { type: 'prompt'; kind: 'text' | 'image'; record?: Prompt }
   | { type: 'generation'; record: Prompt }
+  | { type: 'template'; content: string; promptId?: string }
+  | { type: 'restore'; preview: BackupPreview }
   | { type: 'import' }
   | { type: 'skill'; record: Skill }
   | null;
@@ -51,6 +56,7 @@ const splitTags = (s: string) =>
     .map((t) => t.trim())
     .filter(Boolean);
 const cover = (p: Prompt) =>
+  p.images.find((i) => i.id === p.cover_id) ||
   p.generations.find((g) => g.images.length)?.images[0] ||
   p.images.find((i) => i.role === 'reference');
 const titles: Record<Page, string> = {
@@ -83,80 +89,6 @@ function Tags({ items }: { items: string[] }) {
     </span>
   );
 }
-function ModalShell({
-  title,
-  subtitle,
-  children,
-  onClose,
-  wide = false,
-}: {
-  title: string;
-  subtitle?: string;
-  children: ReactNode;
-  onClose: () => void;
-  wide?: boolean;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const prior = document.activeElement as HTMLElement;
-    const el = ref.current;
-    el?.querySelector<HTMLElement>('input,textarea,button')?.focus();
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopImmediatePropagation();
-        onClose();
-      }
-      if (e.key === 'Tab' && el) {
-        const controls = Array.from(
-          el.querySelectorAll<HTMLElement>(
-            'button:not(:disabled),input,textarea,select,[tabindex="0"]',
-          ),
-        );
-        const first = controls[0],
-          last = controls.at(-1);
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last?.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first?.focus();
-        }
-      }
-    };
-    document.addEventListener('keydown', handler, true);
-    return () => {
-      document.removeEventListener('keydown', handler, true);
-      prior?.focus();
-    };
-  }, []);
-  return (
-    <div
-      className="overlay"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        ref={ref}
-        className={`modal ${wide ? 'wide' : ''}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-      >
-        <header className="modal-header">
-          <div>
-            <h2>{title}</h2>
-            {subtitle && <p>{subtitle}</p>}
-          </div>
-          <button className="icon-button" aria-label="关闭" onClick={onClose}>
-            <X size={20} />
-          </button>
-        </header>
-        {children}
-      </div>
-    </div>
-  );
-}
 function FileDrop({
   label,
   files,
@@ -170,8 +102,13 @@ function FileDrop({
   const [hover, setHover] = useState(false);
   const [error, setError] = useState('');
   const add = (paths: string[]) => {
-    setError('');
-    setFiles([...new Set([...files, ...paths])].slice(0, 30));
+    const combined = [...new Set([...files, ...paths])];
+    setError(
+      combined.length > 30
+        ? `最多保存 30 张图片，另有 ${combined.length - 30} 张未加入。请分批添加。`
+        : '',
+    );
+    setFiles(combined.slice(0, 30));
   };
   return (
     <div className="upload-group">
@@ -392,6 +329,11 @@ function PromptForm({
                   className="prompt-input"
                 />
               </label>
+              <small className="template-hint">
+                {
+                  '使用 {{变量名}} 创建填写项，例如 {{语言}}、{{主题}}。复制时填写；用 \\{{变量名}} 保留字面文本。'
+                }
+              </small>
               <div className="form-row">
                 <label>
                   分类
@@ -750,6 +692,11 @@ export default function App() {
     await perform('favorite', { kind, id });
   };
   const copy = async (text: string, id?: string) => {
+    if (templateVariables(text).length) {
+      setModal({ type: 'template', content: text, promptId: id });
+      return;
+    }
+    text = resolveTemplate(text, {});
     try {
       await call('copy', { text, id });
       notify('已复制到剪贴板');
@@ -840,7 +787,7 @@ export default function App() {
           {p.kind === 'image' ? (
             <div className="card-image">
               {img ? (
-                <img src={img.url} alt={p.title} loading="lazy" />
+                <img src={img.thumbnail} alt={p.title} loading="lazy" />
               ) : (
                 <div className="image-placeholder">
                   <ImageIcon size={34} />
@@ -1040,7 +987,7 @@ export default function App() {
             onClick={() => go('settings')}
           >
             <Settings2 size={18} />
-            设置<span className="version">v0.1</span>
+            设置<span className="version">v0.2</span>
           </button>
         </div>
       </aside>
@@ -1516,9 +1463,18 @@ export default function App() {
                   )}
                   导出完整备份
                 </button>
+                <button
+                  className="button secondary"
+                  disabled={busy}
+                  onClick={async () => {
+                    const preview = await perform<BackupPreview>('inspectBackup');
+                    if (preview) setModal({ type: 'restore', preview });
+                  }}
+                >
+                  选择备份并恢复
+                </button>
                 <small>
-                  恢复方法：退出应用，先另存旧数据，再将备份中的数据库、skills 和 images
-                  放回数据目录。
+                  恢复前会校验文件并自动备份当前库。支持旧版备份；恢复整个库会替换当前收藏。
                 </small>
               </div>
               <div className="settings-card">
@@ -1558,7 +1514,7 @@ export default function App() {
                 </button>
               </div>
               <p className="settings-version">
-                AgentVault 0.1.0 · Schema {state.schema} · 个人本地收藏工具
+                AgentVault 0.2.0 · Schema {state.schema} · 个人本地收藏工具
               </p>
             </>
           )}
@@ -1679,9 +1635,16 @@ export default function App() {
                             {selectedPrompt.images
                               .filter((i) => i.role === 'reference')
                               .map((i) => (
-                                <button onClick={() => setLightbox(i)} key={i.id}>
-                                  <img src={i.url} alt={i.name} />
-                                </button>
+                                <ImageTools
+                                  key={i.id}
+                                  image={i}
+                                  isCover={selectedPrompt.cover_id === i.id}
+                                  busy={busy}
+                                  onView={() => setLightbox(i)}
+                                  onAction={(action, direction) =>
+                                    perform('manageImage', { id: i.id, action, direction })
+                                  }
+                                />
                               ))}
                           </div>
                         ) : (
@@ -1707,10 +1670,16 @@ export default function App() {
                               </div>
                               <div className="media-grid outputs">
                                 {g.images.map((i) => (
-                                  <button key={i.id} onClick={() => setLightbox(i)}>
-                                    <img src={i.url} alt={i.name} />
-                                    <span>{i.name}</span>
-                                  </button>
+                                  <ImageTools
+                                    key={i.id}
+                                    image={i}
+                                    isCover={selectedPrompt.cover_id === i.id}
+                                    busy={busy}
+                                    onView={() => setLightbox(i)}
+                                    onAction={(action, direction) =>
+                                      perform('manageImage', { id: i.id, action, direction })
+                                    }
+                                  />
                                 ))}
                               </div>
                               {g.parameters && (
@@ -1904,7 +1873,35 @@ export default function App() {
           </aside>
         </div>
       )}
-      {modal?.type === 'prompt' || modal?.type === 'generation' ? (
+      {modal?.type === 'template' ? (
+        <TemplateForm
+          content={modal.content}
+          onClose={() => setModal(null)}
+          onCopy={async (text) => {
+            await call('copy', { text, id: modal.promptId });
+            await refresh();
+            setModal(null);
+            notify('已填写变量并复制');
+          }}
+        />
+      ) : modal?.type === 'restore' ? (
+        <RestoreForm
+          preview={modal.preview}
+          busy={busy}
+          onClose={() => {
+            if (!busyRef.current) setModal(null);
+          }}
+          onRestore={async () => {
+            const result = await perform<{ recovery: string }>('restoreBackup');
+            if (result) {
+              setModal(null);
+              setDetail(null);
+              setLightbox(null);
+              notify('恢复完成。恢复前的备份：' + result.recovery);
+            }
+          }}
+        />
+      ) : modal?.type === 'prompt' || modal?.type === 'generation' ? (
         <PromptForm
           modal={modal}
           onClose={() => {

@@ -5,6 +5,7 @@ const { randomUUID, createHash } = require('node:crypto');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { parse } = require('yaml');
+const { parts, inventory, inspectBackup, recoverRestore, writeJournal } = require('./backup.cjs');
 const run = promisify(execFile);
 const now = () => new Date().toISOString();
 const id = () => randomUUID();
@@ -130,12 +131,18 @@ class Vault {
     this.root = path.resolve(root);
     this.sessions = new Map();
     this.busy = new Set();
+    fs.mkdirSync(this.root, { recursive: true });
+    recoverRestore(this.root);
     for (const dir of ['', 'skills', 'images/references', 'images/outputs', 'git', 'staging'])
       fs.mkdirSync(path.join(root, dir), { recursive: true });
     this.root = fs.realpathSync(root);
-    this.db = new DatabaseSync(path.join(root, 'agentvault.db'));
+    this.openDatabase();
+    this.recoverImports();
+  }
+  openDatabase() {
+    this.db = new DatabaseSync(path.join(this.root, 'agentvault.db'));
     const version = this.db.prepare('PRAGMA user_version').get().user_version;
-    if (version > 1) {
+    if (version > 2) {
       this.db.close();
       throw new Error('此数据目录来自更新版本，请使用新版 AgentVault 打开');
     }
@@ -146,7 +153,7 @@ class Vault {
       CREATE TABLE IF NOT EXISTS skills (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL, content TEXT NOT NULL, tags TEXT NOT NULL DEFAULT '[]', favorite INTEGER NOT NULL DEFAULT 0, source TEXT NOT NULL, source_key TEXT NOT NULL UNIQUE, repo TEXT NOT NULL DEFAULT '', relative_path TEXT NOT NULL DEFAULT '', commit_hash TEXT NOT NULL DEFAULT '', latest_commit TEXT NOT NULL DEFAULT '', directory TEXT NOT NULL, files TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS gen_prompt ON generations(prompt_id);
       CREATE INDEX IF NOT EXISTS image_prompt ON images(prompt_id);
-      PRAGMA user_version=1;`);
+      `);
     if (
       !this.db
         .prepare('PRAGMA table_info(skills)')
@@ -154,8 +161,45 @@ class Vault {
         .some((c) => c.name === 'tree_hash')
     )
       this.db.exec("ALTER TABLE skills ADD COLUMN tree_hash TEXT NOT NULL DEFAULT ''");
+    if (version < 2) {
+      this.db.exec(`BEGIN IMMEDIATE;
+        ALTER TABLE prompts ADD COLUMN cover_id TEXT;
+        ALTER TABLE images ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
+        PRAGMA user_version=2;
+        COMMIT;`);
+    }
+  }
+  recoverImports() {
+    const folder = path.join(this.root, 'staging');
+    for (const file of fs
+      .readdirSync(folder)
+      .filter((f) => /^import-[a-f0-9-]{36}\.json$/.test(f))) {
+      const journal = path.join(folder, file);
+      const paths = JSON.parse(fs.readFileSync(journal, 'utf8'));
+      for (const relative of paths) {
+        assert(
+          /^(images\/(references|outputs)\/[a-f0-9-]{36}\.(png|jpg|jpeg|webp|gif)|skills\/[a-f0-9-]{36})$/.test(
+            relative,
+          ),
+          '导入恢复日志无效',
+        );
+        const exists = relative.startsWith('images/')
+          ? this.db.prepare('SELECT id FROM images WHERE path=?').get(relative)
+          : this.db.prepare('SELECT id FROM skills WHERE directory=?').get(relative);
+        if (!exists) fs.rmSync(path.join(this.root, relative), { recursive: true, force: true });
+      }
+      fs.unlinkSync(journal);
+    }
+  }
+  trackImport(relative) {
+    assert(this.importJournal, '文件导入必须位于事务中');
+    this.importPaths.push(relative);
+    writeJournal(this.importJournal, this.importPaths);
   }
   transaction(fn) {
+    assert(!this.importJournal, '不支持嵌套事务');
+    this.importPaths = [];
+    this.importJournal = path.join(this.root, 'staging', `import-${id()}.json`);
     this.db.exec('BEGIN IMMEDIATE');
     try {
       const result = fn();
@@ -164,13 +208,20 @@ class Vault {
     } catch (e) {
       this.db.exec('ROLLBACK');
       throw e;
+    } finally {
+      this.importJournal = null;
+      this.recoverImports();
     }
   }
   state() {
     const images = this.db
-      .prepare('SELECT * FROM images ORDER BY rowid')
+      .prepare('SELECT * FROM images ORDER BY position, rowid')
       .all()
-      .map((row) => ({ ...row, url: `vault://media/${row.id}` }));
+      .map((row) => ({
+        ...row,
+        url: `vault://media/${row.id}`,
+        thumbnail: `vault://media/${row.id}?thumbnail=1`,
+      }));
     const generations = this.db
       .prepare('SELECT * FROM generations ORDER BY created_at DESC, rowid DESC')
       .all();
@@ -197,7 +248,7 @@ class Vault {
           favorite: !!s.favorite,
         })),
       root: this.root,
-      schema: 1,
+      schema: 2,
     };
   }
   savePrompt(input) {
@@ -264,6 +315,7 @@ class Vault {
     assert(valid, '图片格式与文件内容不符');
     const imageId = id();
     const relative = `images/${role === 'reference' ? 'references' : 'outputs'}/${imageId}${ext}`;
+    this.trackImport(relative);
     fs.copyFileSync(source, path.join(this.root, relative), fs.constants.COPYFILE_EXCL);
     return { id: imageId, path: relative, name: path.basename(source) };
   }
@@ -272,8 +324,20 @@ class Vault {
     for (const source of paths) {
       const image = this.importImage(source, role);
       this.db
-        .prepare('INSERT INTO images VALUES(?,?,?,?,?,?)')
-        .run(image.id, promptId, generationId, role, image.path, image.name);
+        .prepare(
+          'INSERT INTO images(id,prompt_id,generation_id,role,path,name,position) VALUES(?,?,?,?,?,?,?)',
+        )
+        .run(
+          image.id,
+          promptId,
+          generationId,
+          role,
+          image.path,
+          image.name,
+          this.db
+            .prepare('SELECT COALESCE(MAX(position),-1)+1 AS n FROM images WHERE prompt_id=?')
+            .get(promptId).n,
+        );
     }
   }
   insertGeneration(promptId, snapshot, input) {
@@ -329,6 +393,34 @@ class Vault {
     const absolute = path.resolve(this.root, image.path);
     assert(within(this.root, absolute), '路径无效');
     return absolute;
+  }
+  manageImage(input) {
+    const image = this.db.prepare('SELECT * FROM images WHERE id=?').get(input.id);
+    assert(image, '图片不存在');
+    return this.transaction(() => {
+      if (input.action === 'cover') {
+        this.db.prepare('UPDATE prompts SET cover_id=? WHERE id=?').run(image.id, image.prompt_id);
+      } else if (input.action === 'delete') {
+        this.db.prepare('UPDATE prompts SET cover_id=NULL WHERE cover_id=?').run(image.id);
+        this.db.prepare('DELETE FROM images WHERE id=?').run(image.id);
+      } else if (input.action === 'move') {
+        assert([-1, 1].includes(input.direction), '排序方向无效');
+        const group = this.db
+          .prepare(
+            'SELECT id FROM images WHERE prompt_id=? AND role=? AND generation_id IS ? ORDER BY position,rowid',
+          )
+          .all(image.prompt_id, image.role, image.generation_id);
+        const current = group.findIndex((i) => i.id === image.id),
+          next = current + input.direction;
+        if (next >= 0 && next < group.length)
+          [group[current], group[next]] = [group[next], group[current]];
+        group.forEach((i, n) =>
+          this.db.prepare('UPDATE images SET position=? WHERE id=?').run(n, i.id),
+        );
+      } else throw new Error('图片操作无效');
+      this.db.prepare('UPDATE prompts SET updated_at=? WHERE id=?').run(now(), image.prompt_id);
+      return true;
+    });
   }
   scanLocal(root) {
     const files = scanFiles(root);
@@ -396,6 +488,7 @@ class Vault {
         const info = skillInfo(source),
           skillId = id(),
           directory = path.join(this.root, 'skills', skillId);
+        this.trackImport(`skills/${skillId}`);
         copySkill(source, directory);
         const time = now();
         this.db
@@ -521,9 +614,13 @@ class Vault {
     }
   }
   async exportBackup(destination) {
+    assert(!this.busy.size, 'Skill 正在更新，请稍后备份');
     const resolved = fs.realpathSync(destination);
     assert(resolved !== this.root && !within(this.root, resolved), '备份请选择数据目录以外的位置');
-    const target = path.join(resolved, `AgentVault-backup-${now().replace(/[:.]/g, '-')}`);
+    const target = path.join(
+      resolved,
+      `AgentVault-backup-${now().replace(/[:.]/g, '-')}-${id().slice(0, 8)}`,
+    );
     fs.mkdirSync(target);
     await backup(this.db, path.join(target, 'agentvault.db'));
     for (const dir of ['skills', 'images'])
@@ -533,7 +630,8 @@ class Vault {
       JSON.stringify(
         {
           app: 'AgentVault',
-          schema: 1,
+          schema: 2,
+          checksums: inventory(target).files,
           createdAt: now(),
           restore:
             '退出 AgentVault 后，将 agentvault.db、skills 和 images 复制到原数据目录，旧库请先另存。Git 缓存无需恢复。',
@@ -545,6 +643,68 @@ class Vault {
     const data = this.state();
     fs.writeFileSync(path.join(target, 'catalog.json'), JSON.stringify(data, null, 2));
     return target;
+  }
+  inspectBackup(source) {
+    const preview = inspectBackup(source);
+    assert(
+      preview.root !== this.root && !within(this.root, preview.root),
+      '请选择当前数据目录以外的备份',
+    );
+    this.restorePreview = preview;
+    return preview;
+  }
+  async restoreBackup() {
+    assert(this.restorePreview, '请先选择并校验备份');
+    assert(!this.busy.size, 'Skill 正在更新，请稍后恢复');
+    const preview = this.restorePreview;
+    assert(
+      inspectBackup(preview.root).fingerprint === preview.fingerprint,
+      '备份已变化，请重新选择',
+    );
+    const recoveryRoot = path.join(path.dirname(this.root), path.basename(this.root) + '-recovery');
+    fs.mkdirSync(recoveryRoot, { recursive: true });
+    const recovery = await this.exportBackup(recoveryRoot);
+    const stageName = `restore-${id()}`,
+      stage = path.join(this.root, 'staging', stageName);
+    fs.mkdirSync(path.join(stage, 'next'), { recursive: true });
+    fs.mkdirSync(path.join(stage, 'previous'));
+    for (const part of [...parts, 'manifest.json'])
+      fs.cpSync(path.join(preview.root, part), path.join(stage, 'next', part), { recursive: true });
+    assert(
+      inspectBackup(path.join(stage, 'next')).fingerprint === preview.fingerprint,
+      '复制期间备份发生变化，请重新选择',
+    );
+    const journal = path.join(this.root, 'restore-journal.json');
+    this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+    this.db.close();
+    try {
+      writeJournal(journal, { stage: stageName, committed: false });
+      for (const suffix of ['-wal', '-shm'])
+        fs.rmSync(path.join(this.root, 'agentvault.db' + suffix), { force: true });
+      for (const part of parts) {
+        fs.renameSync(path.join(this.root, part), path.join(stage, 'previous', part));
+        fs.renameSync(path.join(stage, 'next', part), path.join(this.root, part));
+      }
+      this.openDatabase();
+      this.state();
+      // Removing the journal commits the replacement. A crash before this rolls back on startup.
+      fs.unlinkSync(journal);
+      this.sessions.clear();
+      this.restorePreview = null;
+    } catch (error) {
+      try {
+        this.db.close();
+      } catch {}
+      recoverRestore(this.root);
+      this.openDatabase();
+      throw error;
+    }
+    try {
+      fs.rmSync(stage, { recursive: true, force: true });
+    } catch {
+      /* recovery backup is retained */
+    }
+    return { recovery, counts: preview.counts };
   }
   close() {
     this.db.close();

@@ -2164,3 +2164,72 @@ main {
     transition: none !important;
   }
 }
+.asset-form {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+}
+.asset-form label,
+.variable-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.variable-fields {
+  gap: 16px;
+}
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.restore-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-weight: 600;
+}
+.asset-form .restore-confirm {
+  flex-direction: row;
+  align-items: center;
+}
+.restore-confirm input {
+  width: auto;
+}
+.managed-image {
+  min-width: 0;
+  border: 1px solid #e3dfe9;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.media-grid .managed-image .image-view {
+  display: block;
+  width: 100%;
+  border-radius: 0;
+  padding: 0;
+}
+.managed-image .image-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 6px 8px;
+  font-size: 11px;
+}
+.image-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 6px 8px;
+}
+.media-grid .image-actions button {
+  background: #f2eff7;
+  padding: 5px 7px;
+  font-size: 11px;
+  border-radius: 4px;
+}
+.media-grid .image-actions button:hover {
+  background: #e5dcf4;
+}
