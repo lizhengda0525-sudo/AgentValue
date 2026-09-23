@@ -81,6 +81,30 @@ test('custom installation keeps data beside the app and copies an older default 
   }
 });
 
+test('migration does not mkdir an existing parent such as a Windows drive root', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentvalue-drive-root-'));
+  const originalMkdir = fs.mkdirSync;
+  try {
+    const source = new Vault(path.join(root, 'source'));
+    source.savePrompt({ kind: 'text', title: '旧收藏', content: '保留' });
+    source.close();
+    fs.mkdirSync = (directory, options) => {
+      if (path.resolve(directory) === root) {
+        const error = new Error(`EPERM: operation not permitted, mkdir '${root}'`);
+        error.code = 'EPERM';
+        throw error;
+      }
+      return originalMkdir(directory, options);
+    };
+    const target = path.join(root, 'new-data');
+    await copyData(source.root, target, 'agentvalue.db');
+    assert.ok(fs.existsSync(path.join(target, 'agentvalue.db')));
+  } finally {
+    fs.mkdirSync = originalMkdir;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('data location change copies and verifies before selection, and refuses nonempty targets', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentvalue-location-'));
   try {

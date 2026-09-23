@@ -57,7 +57,11 @@ async function copyData(source, target, sourceDatabase, openDatabase) {
     throw new Error('新旧数据位置不能互相包含');
   ensureTargetEmpty(target);
   const parent = path.dirname(target);
-  fs.mkdirSync(parent, { recursive: true });
+  if (fs.existsSync(parent)) {
+    if (!fs.statSync(parent).isDirectory()) throw new Error('数据目录的上级路径不是文件夹');
+  } else {
+    fs.mkdirSync(parent, { recursive: true });
+  }
   const stage = fs.mkdtempSync(path.join(parent, '.agentvalue-migrate-'));
   let db;
   try {

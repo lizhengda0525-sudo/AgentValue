@@ -6,7 +6,7 @@
 
 ## 直接启动
 
-从 [Releases](https://github.com/lizhengda0525-sudo/AgentValue/releases/latest) 下载 `AgentValue-Setup-*-windows-x64.exe`。安装向导会让你确认或更改安装文件夹；安装后从桌面或开始菜单启动。无需安装 Node.js、Codex 或 API Key。使用 GitHub Skill 导入功能仍需安装 Git。当前源码版本为 **0.3.2**。
+从 [Releases](https://github.com/lizhengda0525-sudo/AgentValue/releases/latest) 下载 `AgentValue-Setup-*-windows-x64.exe`。安装向导会让你确认或更改安装文件夹；安装后从桌面或开始菜单启动。无需安装 Node.js、Codex 或 API Key。使用 GitHub Skill 导入功能仍需安装 Git。当前源码版本为 **0.3.3**。
 
 从源码打包后，可双击项目根目录的 `Start-AgentValue.vbs` 启动测试用的 `release/win-unpacked/AgentValue.exe`。源码仓库不包含打包产物。
 

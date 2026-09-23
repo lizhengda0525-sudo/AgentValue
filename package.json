@@ -1,7 +1,7 @@
 {
   "name": "agent-value",
   "productName": "AgentValue",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "packageManager": "pnpm@11.19.0",
   "engines": {
