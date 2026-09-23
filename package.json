@@ -25,7 +25,7 @@
     "test:github": "node scripts/github-smoke.mjs",
     "format": "prettier --write src electron scripts tests package.json tsconfig.json vite.config.ts",
     "format:check": "prettier --check src electron scripts tests package.json tsconfig.json vite.config.ts",
-    "package": "pnpm build && electron-builder --win nsis --x64"
+    "package": "pnpm build && electron-builder --win nsis --x64 --publish never"
   },
   "dependencies": {
     "electron-updater": "6.8.9",
