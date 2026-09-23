@@ -6,7 +6,7 @@
 
 ## 直接启动
 
-从 [Releases](https://github.com/lizhengda0525-sudo/AgentValue/releases/latest) 下载 `AgentValue-Setup-*-windows-x64.exe`。安装向导会让你确认或更改安装文件夹；安装后从桌面或开始菜单启动。无需安装 Node.js、Codex 或 API Key。使用 GitHub Skill 导入功能仍需安装 Git。当前源码版本为 **0.3.4**。
+从 [Releases](https://github.com/lizhengda0525-sudo/AgentValue/releases/latest) 下载 `AgentValue-Setup-*-windows-x64.exe`。安装向导会让你确认或更改安装文件夹；安装后从桌面或开始菜单启动。无需安装 Node.js、Codex 或 API Key。使用 GitHub Skill 导入功能仍需安装 Git。当前源码版本为 **0.3.5**。
 
 从源码打包后，可双击项目根目录的 `Start-AgentValue.vbs` 启动测试用的 `release/win-unpacked/AgentValue.exe`。源码仓库不包含打包产物。
 
@@ -18,7 +18,7 @@
 
 - 首页：真实数量、最近使用 Prompt、最近添加 Skill、最近图片。
 - 文本：新增、编辑、分类、标签、收藏、删除确认、全文搜索、一键复制。
-- 模板：正文支持 `{{语言}}`、`{{主题}}` 等中文变量；复制时填写、预览，不修改原始模板。重复变量只填写一次；`\{{变量名}}` 按字面复制，不执行脚本。首版变量均为必填自由文本。
+- 模板：正文支持 `{{语言}}`、`{{主题}}` 等中文变量；复制时左侧原文与右侧同色填写框实时对应，不修改原始模板。重复变量只填写一次；`\{{变量名}}` 按字面复制，不执行脚本。首版变量均为必填自由文本。
 - 图片：多张参考图和效果图、选择与拖放、画廊、放大查看；实验记录保存模型、尺寸、比例、参数、评分、备注及不可变正文快照。
 - 图片整理：单张移除、前后排序、指定封面；列表与详情使用按需缓存的缩略图，大图仍读取原文件。移除图片会确认，其他图片与实验快照保留。
 - Skills：本地目录递归扫描；公开 GitHub 仓库扫描后选择导入；显示 SKILL.md 和文件列表、编辑描述/标签、收藏、搜索、打开文件夹、复制到项目。

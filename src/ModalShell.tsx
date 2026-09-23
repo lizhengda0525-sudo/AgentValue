@@ -6,12 +6,14 @@ export function ModalShell({
   children,
   onClose,
   wide = false,
+  className = '',
 }: {
   title: string;
   subtitle?: string;
   children: ReactNode;
   onClose: () => void;
   wide?: boolean;
+  className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
@@ -57,7 +59,7 @@ export function ModalShell({
     >
       <div
         ref={ref}
-        className={`modal ${wide ? 'wide' : ''}`}
+        className={`modal ${wide ? 'wide' : ''} ${className}`.trim()}
         role="dialog"
         aria-modal="true"
         aria-label={title}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ModalShell } from './ModalShell';
-import { resolveTemplate, templateVariables } from './template';
+import { resolveTemplate, templateParts, templateVariables } from './template';
 import type { BackupPreview, Media } from './types';
 
 export function TemplateForm({
@@ -13,21 +13,26 @@ export function TemplateForm({
   onCopy: (text: string) => Promise<void>;
 }) {
   const names = templateVariables(content);
+  const parts = templateParts(content);
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   const preview = resolveTemplate(content, values);
   const value = (name: string) => (Object.hasOwn(values, name) ? values[name] : '');
+  const color = (name: string) => `template-color-${names.indexOf(name) % 6}`;
+  const focusField = (name: string) => {
+    document.getElementById(`template-field-${names.indexOf(name)}`)?.focus();
+  };
   return (
     <ModalShell
       title="填写模板变量"
-      subtitle="填写后复制本次内容，原模板保持不变。"
+      className="template-modal"
       onClose={() => {
         if (!busy) onClose();
       }}
     >
       <form
-        className="asset-form form"
+        className="template-form form"
         onSubmit={async (e) => {
           e.preventDefault();
           if (busy) return;
@@ -42,32 +47,65 @@ export function TemplateForm({
           }
         }}
       >
-        <div className="variable-fields">
-          {names.map((name) => (
-            <label key={name}>
-              {name}
-              <textarea
-                required
-                rows={2}
-                maxLength={20000}
-                value={value(name)}
-                onChange={(e) => setValues((v) => ({ ...v, [name]: e.target.value }))}
-              />
-            </label>
-          ))}
+        <div className="template-columns">
+          <section className="template-original" aria-labelledby="template-original-heading">
+            <h3 id="template-original-heading">原始提示词</h3>
+            <div className="template-original-content">
+              {parts.map((part, index) =>
+                part.variable ? (
+                  <button
+                    key={index}
+                    type="button"
+                    className={`template-slot ${color(part.variable)}`}
+                    aria-label={`填写变量 ${part.variable}`}
+                    onClick={() => focusField(part.variable!)}
+                  >
+                    {value(part.variable).trim() ? value(part.variable) : part.text}
+                  </button>
+                ) : (
+                  <span key={index}>{part.text}</span>
+                ),
+              )}
+            </div>
+          </section>
+          <section className="template-fields" aria-labelledby="template-fields-heading">
+            <h3 id="template-fields-heading">填写内容</h3>
+            <div className="template-field-list">
+              {names.map((name, index) => (
+                <div className={`template-field ${color(name)}`} key={name}>
+                  <label htmlFor={`template-field-${index}`}>
+                    <span className="template-color-dot" aria-hidden="true" />
+                    {name}
+                  </label>
+                  <textarea
+                    id={`template-field-${index}`}
+                    required
+                    rows={2}
+                    maxLength={20000}
+                    value={value(name)}
+                    onChange={(e) => setValues((v) => ({ ...v, [name]: e.target.value }))}
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
-        <label>
-          复制预览
-          <textarea readOnly rows={6} value={preview} />
-        </label>
         {error && (
           <p className="form-error" role="alert">
             {error}
           </p>
         )}
-        <div className="form-actions">
-          <button className="button secondary" type="button" disabled={busy} onClick={onClose}>
-            取消
+        <div className="template-actions">
+          <span aria-live="polite">
+            已填写 {names.filter((name) => value(name).trim()).length} / {names.length}
+          </span>
+          <button
+            className="button secondary"
+            type="button"
+            disabled={busy}
+            onClick={() => setValues({})}
+          >
+            重置填写
           </button>
           <button
             className="button primary"

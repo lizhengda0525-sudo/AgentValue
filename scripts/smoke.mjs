@@ -28,6 +28,15 @@ async function launch() {
     env,
     timeout: 60000,
   });
+  if (process.env.AGENTVALUE_SMOKE_MOCK_CLIPBOARD === '1') {
+    await app.evaluate(({ clipboard }) => {
+      let text = '';
+      clipboard.writeText = (value) => {
+        text = value;
+      };
+      clipboard.readText = () => text;
+    });
+  }
   const page = await app.firstWindow();
   await page.emulateMedia({ reducedMotion: 'reduce' });
   page.setDefaultTimeout(15000);
@@ -71,7 +80,9 @@ try {
   await page.getByRole('button', { name: '收藏 测试 · 代码审查', exact: true }).click();
   await page.getByLabel('全局搜索').fill('并发边界');
   await page.getByRole('heading', { name: '测试 · 代码审查', exact: true }).waitFor();
-  completed.push('Text create, tags, favorite, full-text search and actual clipboard');
+  completed.push(
+    `Text create, tags, favorite, full-text search and ${process.env.AGENTVALUE_SMOKE_MOCK_CLIPBOARD ? 'mocked' : 'actual'} clipboard`,
+  );
   await page.getByRole('heading', { name: '测试 · 代码审查', exact: true }).click();
   await page.getByRole('button', { name: '编辑', exact: true }).click();
   const template = '请用 {{语言}} 审查 {{主题}} 的并发边界。';
@@ -79,15 +90,30 @@ try {
   await page.getByRole('button', { name: '保存收藏', exact: true }).click();
   await page.getByRole('button', { name: '复制 Prompt', exact: true }).click();
   await page.getByRole('dialog', { name: '填写模板变量' }).waitFor();
+  const templateDialog = page.getByRole('dialog', { name: '填写模板变量' });
+  await templateDialog.getByRole('heading', { name: '原始提示词' }).waitFor();
+  await templateDialog.getByRole('heading', { name: '填写内容' }).waitFor();
+  assert.deepEqual(await templateDialog.locator('.template-slot').allTextContents(), [
+    '{{语言}}',
+    '{{主题}}',
+  ]);
+  assert.equal(await templateDialog.locator('.template-field').count(), 2);
   assert.equal(await page.getByRole('button', { name: '填写并复制' }).isDisabled(), true);
-  await page.getByRole('button', { name: '取消', exact: true }).click();
+  await templateDialog.getByRole('button', { name: '关闭', exact: true }).click();
   assert.equal(
     await app.evaluate(({ clipboard }) => clipboard.readText()),
     '请检查并发边界与异常处理。',
   );
   await page.getByRole('button', { name: '复制 Prompt', exact: true }).click();
   await page.getByLabel('语言', { exact: true }).fill('中文');
+  assert.equal(await page.locator('.template-slot').first().textContent(), '中文');
+  assert.equal(await page.locator('.template-slot').last().textContent(), '{{主题}}');
   await page.getByLabel('主题', { exact: true }).fill('队列');
+  assert.deepEqual(await page.locator('.template-slot').allTextContents(), ['中文', '队列']);
+  assert.equal(
+    (await page.locator('.template-slot').first().getAttribute('class')).split(' ').at(-1),
+    (await page.locator('.template-field').first().getAttribute('class')).split(' ').at(-1),
+  );
   await page.screenshot({ path: path.join(artifacts, 'template-variables.png'), fullPage: true });
   await page.getByRole('button', { name: '填写并复制', exact: true }).click();
   await page.getByRole('status').filter({ hasText: '已填写变量并复制' }).waitFor();
@@ -101,7 +127,7 @@ try {
   );
   await page.getByRole('button', { name: '关闭详情', exact: true }).click();
   completed.push(
-    'Template variables: cancel, required values, preview, actual clipboard and original preservation',
+    `Template variables: cancel, required values, live fill, ${process.env.AGENTVALUE_SMOKE_MOCK_CLIPBOARD ? 'mocked' : 'actual'} clipboard and original preservation`,
   );
   await page.getByRole('button', { name: '清空搜索', exact: true }).click();
   await page.getByRole('button', { name: '图片 Prompt', exact: false }).first().click();

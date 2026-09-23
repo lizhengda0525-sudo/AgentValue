@@ -67,7 +67,9 @@ jobs:
             "$hash  $(Split-Path $_ -Leaf)"
           } | Set-Content release/SHA256SUMS.txt -Encoding ascii
           $assets += 'release/SHA256SUMS.txt'
+          $releaseNotes = "docs/releases/$env:GITHUB_REF_NAME.md"
+          if (-not (Test-Path -LiteralPath $releaseNotes)) { throw "Release notes missing: $releaseNotes" }
           gh release view $env:GITHUB_REF_NAME *> $null
           if ($LASTEXITCODE -eq 0) { throw 'Release already exists; never overwrite a published version' }
-          gh release create $env:GITHUB_REF_NAME $assets --verify-tag --latest --title "AgentValue $env:GITHUB_REF_NAME" --notes 'Download AgentValue-Setup to install the Windows x64 desktop app. Personal data stays in a data folder inside the chosen installation directory and is kept when uninstalling. Versions 0.3.2 and 0.3.3 installed in a custom folder need one manual installer upgrade; future versions can be installed from within the app.'
+          gh release create $env:GITHUB_REF_NAME $assets --verify-tag --latest --title "AgentValue $env:GITHUB_REF_NAME" --notes-file $releaseNotes
           if ($LASTEXITCODE -ne 0) { throw 'GitHub release publication failed' }
