@@ -62,6 +62,8 @@ export type SoftwareStatus = {
     | 'ready'
     | 'error';
   currentVersion?: string;
+  canUninstall?: boolean;
+  installDirectory?: string;
   version?: string;
   percent?: number;
   message?: string;

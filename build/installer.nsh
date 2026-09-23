@@ -1,6 +1,11 @@
 !macro preInit
   SetRegView 64
-  WriteRegExpandStr HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation "$LOCALAPPDATA\Programs\AgentValue\app"
-  SetRegView 32
-  WriteRegExpandStr HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation "$LOCALAPPDATA\Programs\AgentValue\app"
+  ReadRegStr $R0 HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation
+  ${If} $R0 == ""
+    WriteRegExpandStr HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation "$LOCALAPPDATA\Programs\AgentValue\app"
+  ${EndIf}
+!macroend
+
+!macro customInstallMode
+  StrCpy $isForceCurrentInstall "1"
 !macroend

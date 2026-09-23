@@ -6,13 +6,13 @@
 
 ## 直接启动
 
-从 [Releases](https://github.com/lizhengda0525-sudo/AgentValue/releases/latest) 下载 `AgentValue-Setup-*-windows-x64.exe`，安装后从桌面或开始菜单启动。无需安装 Node.js、Codex 或 API Key。使用 GitHub Skill 导入功能仍需安装 Git。当前源码版本为 **0.3.1**。
+从 [Releases](https://github.com/lizhengda0525-sudo/AgentValue/releases/latest) 下载 `AgentValue-Setup-*-windows-x64.exe`。安装向导会让你确认或更改安装文件夹；安装后从桌面或开始菜单启动。无需安装 Node.js、Codex 或 API Key。使用 GitHub Skill 导入功能仍需安装 Git。当前源码版本为 **0.3.2**。
 
 从源码打包后，可双击项目根目录的 `Start-AgentValue.vbs` 启动测试用的 `release/win-unpacked/AgentValue.exe`。源码仓库不包含打包产物。
 
 首次启动是空库。设置页可以按需添加两条明确标注的文本示例。所有测试使用隔离目录，不会往个人库加入测试数据。
 
-默认安装位置为 `%LOCALAPPDATA%\Programs\AgentValue\app`，数据保存在同一根目录的 `data` 文件夹中。程序更新和卸载会保留数据。设置页可选择空文件夹迁移数据，迁移成功前保留原目录。首次安装会自动复制旧版 `%USERPROFILE%\.agentvault` 收藏库并校验，旧目录不会自动删除。
+安装向导建议的位置为 `%LOCALAPPDATA%\Programs\AgentValue\app`，对应数据文件夹为 `%LOCALAPPDATA%\Programs\AgentValue\data`。如果改选其他安装文件夹，例如 `D:\Apps\AgentValue`，默认数据文件夹会建在旁边的 `D:\Apps\AgentValue-data`，避免卸载时删除个人数据。后续更新沿用所选安装位置。可在软件设置页点击“卸载 AgentValue”，也可从 Windows“已安装的应用”卸载；两种方式都会保留个人数据。设置页也可选择空文件夹迁移数据，迁移成功前保留原目录。首次安装会自动复制旧版 `%USERPROFILE%\.agentvault` 收藏库；从旧默认位置改装到新位置时也会复制原有数据，旧目录不会自动删除。
 
 ## 已实现
 

@@ -25,6 +25,7 @@ const allowed = new Set([
   'checkSoftwareUpdate',
   'downloadSoftwareUpdate',
   'installSoftwareUpdate',
+  'uninstallSoftware',
 ]);
 contextBridge.exposeInMainWorld('vault', {
   call: async (operation, input) => {

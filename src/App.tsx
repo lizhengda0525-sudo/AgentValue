@@ -1522,6 +1522,35 @@ export default function App() {
                   </button>
                 )}
               </div>
+              {software.canUninstall && (
+                <div className="settings-card">
+                  <h2>
+                    <Trash2 size={19} />
+                    安装与卸载
+                  </h2>
+                  <p>安装位置：{software.installDirectory}</p>
+                  <p>卸载程序只会移除软件；个人收藏仍保留在上方显示的数据目录。</p>
+                  <button
+                    className="button secondary"
+                    disabled={busy}
+                    onClick={async () => {
+                      if (busyRef.current) return;
+                      busyRef.current = true;
+                      setBusy(true);
+                      try {
+                        if (await call<boolean>('uninstallSoftware')) notify('正在打开卸载向导');
+                      } catch (error) {
+                        notify(error instanceof Error ? error.message : '无法打开卸载程序', true);
+                      } finally {
+                        busyRef.current = false;
+                        setBusy(false);
+                      }
+                    }}
+                  >
+                    卸载 AgentValue
+                  </button>
+                </div>
+              )}
               <div className="settings-card">
                 <h2>
                   <Archive size={19} />

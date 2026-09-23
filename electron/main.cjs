@@ -8,6 +8,7 @@ const {
   protocol,
   net,
 } = require('electron');
+const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { Vault } = require('./store.cjs');
@@ -202,7 +203,16 @@ if (!app.requestSingleInstanceLock()) {
               break;
             }
             case 'softwareStatus':
-              data = { ...appUpdater.status(), currentVersion: app.getVersion() };
+              data = {
+                ...appUpdater.status(),
+                currentVersion: app.getVersion(),
+                canUninstall:
+                  app.isPackaged &&
+                  fs.existsSync(
+                    path.join(path.dirname(app.getPath('exe')), 'Uninstall AgentValue.exe'),
+                  ),
+                installDirectory: path.dirname(app.getPath('exe')),
+              };
               break;
             case 'checkSoftwareUpdate':
               data = await appUpdater.check();
@@ -215,6 +225,35 @@ if (!app.requestSingleInstanceLock()) {
                 throw new Error('请等待当前操作完成后再更新软件');
               data = appUpdater.install();
               break;
+            case 'uninstallSoftware': {
+              if (activeCalls > 1 || vault.busy.size)
+                throw new Error('请等待当前操作完成后再卸载软件');
+              const uninstaller = path.join(
+                path.dirname(app.getPath('exe')),
+                'Uninstall AgentValue.exe',
+              );
+              if (!app.isPackaged || !fs.existsSync(uninstaller))
+                throw new Error('当前不是安装版，请通过 Windows 的应用管理卸载');
+              const answer = await dialog.showMessageBox(win, {
+                type: 'warning',
+                title: '卸载 AgentValue',
+                message: '确定卸载 AgentValue 吗？',
+                detail: `软件将关闭并打开卸载向导。个人收藏会保留在：\n${vault.root}`,
+                buttons: ['取消', '卸载程序'],
+                defaultId: 0,
+                cancelId: 0,
+                noLink: true,
+              });
+              if (answer.response !== 1) {
+                data = false;
+                break;
+              }
+              const error = await shell.openPath(uninstaller);
+              if (error) throw new Error(error);
+              data = true;
+              setTimeout(() => app.quit(), 250).unref();
+              break;
+            }
             case 'checkUpdate':
               data = await vault.checkUpdate(input.id);
               break;

@@ -14,8 +14,9 @@ win:
       arch:
         - x64
 nsis:
-  oneClick: true
+  oneClick: false
   perMachine: false
+  allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
   createDesktopShortcut: always
   createStartMenuShortcut: true
