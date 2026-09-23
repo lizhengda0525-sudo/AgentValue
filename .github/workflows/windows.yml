@@ -31,7 +31,19 @@ jobs:
       - name: Test data and file operations
         run: pnpm test
       - name: Build Windows installer
-        run: pnpm package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          pnpm package *> artifacts/package.log
+          $exitCode = $LASTEXITCODE
+          Get-Content artifacts/package.log -Tail 80
+          if ($exitCode -ne 0) {
+            '### Installer build output' | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            '```text' | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            Get-Content artifacts/package.log -Tail 80 | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            '```' | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            exit $exitCode
+          }
       - name: Test the packaged desktop app
         shell: pwsh
         run: |
