@@ -21,6 +21,7 @@ const {
   resolveDataDirectory,
 } = require('./data-location.cjs');
 const { createAppUpdater } = require('./app-update.cjs');
+const { uninstallerPath, isInstalledApp } = require('./installation.cjs');
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'vault',
@@ -206,11 +207,7 @@ if (!app.requestSingleInstanceLock()) {
               data = {
                 ...appUpdater.status(),
                 currentVersion: app.getVersion(),
-                canUninstall:
-                  app.isPackaged &&
-                  fs.existsSync(
-                    path.join(path.dirname(app.getPath('exe')), 'Uninstall AgentValue.exe'),
-                  ),
+                canUninstall: isInstalledApp(app.getPath('exe'), app.isPackaged),
                 installDirectory: path.dirname(app.getPath('exe')),
               };
               break;
@@ -228,10 +225,7 @@ if (!app.requestSingleInstanceLock()) {
             case 'uninstallSoftware': {
               if (activeCalls > 1 || vault.busy.size)
                 throw new Error('请等待当前操作完成后再卸载软件');
-              const uninstaller = path.join(
-                path.dirname(app.getPath('exe')),
-                'Uninstall AgentValue.exe',
-              );
+              const uninstaller = uninstallerPath(app.getPath('exe'));
               if (!app.isPackaged || !fs.existsSync(uninstaller))
                 throw new Error('当前不是安装版，请通过 Windows 的应用管理卸载');
               const answer = await dialog.showMessageBox(win, {
@@ -339,9 +333,7 @@ if (!app.requestSingleInstanceLock()) {
       );
       appUpdater = createAppUpdater(
         win,
-        app.isPackaged &&
-          !isolatedData &&
-          path.basename(path.dirname(app.getPath('exe'))).toLowerCase() === 'app',
+        isInstalledApp(app.getPath('exe'), app.isPackaged) && !isolatedData,
       );
       app.on('activate', () => {
         if (win) win.show();

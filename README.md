@@ -6,7 +6,7 @@
 
 ## 直接启动
 
-从 [Releases](https://github.com/lizhengda0525-sudo/AgentValue/releases/latest) 下载 `AgentValue-Setup-*-windows-x64.exe`。安装向导会让你确认或更改安装文件夹；安装后从桌面或开始菜单启动。无需安装 Node.js、Codex 或 API Key。使用 GitHub Skill 导入功能仍需安装 Git。当前源码版本为 **0.3.3**。
+从 [Releases](https://github.com/lizhengda0525-sudo/AgentValue/releases/latest) 下载 `AgentValue-Setup-*-windows-x64.exe`。安装向导会让你确认或更改安装文件夹；安装后从桌面或开始菜单启动。无需安装 Node.js、Codex 或 API Key。使用 GitHub Skill 导入功能仍需安装 Git。当前源码版本为 **0.3.4**。
 
 从源码打包后，可双击项目根目录的 `Start-AgentValue.vbs` 启动测试用的 `release/win-unpacked/AgentValue.exe`。源码仓库不包含打包产物。
 
@@ -24,7 +24,7 @@
 - Skills：本地目录递归扫描；公开 GitHub 仓库扫描后选择导入；显示 SKILL.md 和文件列表、编辑描述/标签、收藏、搜索、打开文件夹、复制到项目。
 - 更新：记录 Commit、检查远程版本、手动更新副本；保留个人名称/标签/收藏；检测外部文件修改并阻止覆盖；复制时拒绝覆盖同名目录。
 - 设置：打开或更改数据目录；导出带 SHA-256 文件校验和的完整备份及 JSON 清单；应用内校验、预览和恢复备份，恢复前自动备份当前库。
-- 软件更新：启动后及运行期间每 6 小时检查 GitHub Releases；发现新版后由用户下载、重启安装。软件退出后不在后台运行。
+- 软件更新：启动后及运行期间每 6 小时检查 GitHub Releases；发现新版后由用户下载、重启安装。软件退出后不在后台运行。0.3.2 和 0.3.3 安装在自选目录时会错误地关闭软件更新，需要手动运行一次 0.3.4 安装包；之后可在软件内更新。
 
 ## 数据设计
 
