@@ -16,7 +16,7 @@ const {
   saveDataChoice,
 } = require('../electron/data-location.cjs');
 
-test('old AgentVault library migrates next to the installed app without changing the original', async () => {
+test('old AgentVault library migrates inside the installed app without changing the original', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentvalue-migration-'));
   try {
     const legacy = path.join(root, 'home', '.agentvault');
@@ -31,7 +31,7 @@ test('old AgentVault library migrates next to the installed app without changing
       configFile: path.join(root, 'settings.json'),
       localAppData: path.join(root, 'Local'),
     });
-    assert.equal(target, path.join(root, 'Programs', 'AgentValue', 'data'));
+    assert.equal(target, path.join(root, 'Programs', 'AgentValue', 'app', 'data'));
     assert.ok(fs.existsSync(path.join(legacy, 'agentvault.db')));
     assert.ok(fs.existsSync(path.join(target, 'agentvalue.db')));
     const migrated = new Vault(target);
@@ -51,18 +51,18 @@ test('old AgentVault library migrates next to the installed app without changing
   }
 });
 
-test('custom installation keeps data beside the app and copies an older default library', async () => {
+test('custom installation keeps data inside the app and copies the prior adjacent library', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentvalue-install-location-'));
   try {
     const localAppData = path.join(root, 'Local');
-    const previousDefault = path.join(localAppData, 'Programs', 'AgentValue', 'data');
-    const old = new Vault(previousDefault);
+    const previousAdjacent = path.join(root, 'Chosen', 'AgentValue-data');
+    const old = new Vault(previousAdjacent);
     old.savePrompt({ kind: 'text', title: '原有收藏', content: '迁移到新安装位置' });
     old.close();
 
     const executable = path.join(root, 'Chosen', 'AgentValue', 'AgentValue.exe');
     const target = defaultDataDirectory(executable);
-    assert.equal(target, path.join(root, 'Chosen', 'AgentValue-data'));
+    assert.equal(target, path.join(root, 'Chosen', 'AgentValue', 'data'));
     assert.equal(
       await resolveDataDirectory({
         executable,
@@ -74,6 +74,31 @@ test('custom installation keeps data beside the app and copies an older default 
     );
     const migrated = new Vault(target);
     assert.equal(migrated.state().prompts[0].content, '迁移到新安装位置');
+    migrated.close();
+    assert.ok(fs.existsSync(path.join(previousAdjacent, 'agentvalue.db')));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('moving from the old default installation copies its library into the chosen app folder', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentvalue-old-default-'));
+  try {
+    const localAppData = path.join(root, 'Local');
+    const previousDefault = path.join(localAppData, 'Programs', 'AgentValue', 'data');
+    const old = new Vault(previousDefault);
+    old.savePrompt({ kind: 'text', title: '旧默认目录', content: '继续保留' });
+    old.close();
+    const executable = path.join(root, 'Chosen', 'AgentValue', 'AgentValue.exe');
+    const target = await resolveDataDirectory({
+      executable,
+      home: path.join(root, 'home'),
+      configFile: path.join(root, 'settings.json'),
+      localAppData,
+    });
+    assert.equal(target, path.join(root, 'Chosen', 'AgentValue', 'data'));
+    const migrated = new Vault(target);
+    assert.equal(migrated.state().prompts[0].content, '继续保留');
     migrated.close();
     assert.ok(fs.existsSync(path.join(previousDefault, 'agentvalue.db')));
   } finally {

@@ -5,10 +5,7 @@ const { DatabaseSync, backup } = require('node:sqlite');
 const { databaseFile, legacyDatabaseFile, inventory, inspectBackup } = require('./backup.cjs');
 
 function defaultDataDirectory(executable) {
-  const appDirectory = path.dirname(executable);
-  return path.basename(appDirectory).toLowerCase() === 'app'
-    ? path.join(path.dirname(appDirectory), 'data')
-    : path.join(path.dirname(appDirectory), `${path.basename(appDirectory)}-data`);
+  return path.join(path.dirname(executable), 'data');
 }
 
 function settingsFile(
@@ -104,9 +101,16 @@ async function resolveDataDirectory({
   if (choice) throw new Error(`已选数据目录不可用或缺少 ${databaseFile}，请检查：${target}`);
   if (fs.existsSync(target) && fs.readdirSync(target).length)
     throw new Error(`数据目录没有 ${databaseFile}，请检查：${target}`);
+  const appDirectory = path.dirname(executable);
+  const previousAdjacent =
+    path.basename(appDirectory).toLowerCase() === 'app'
+      ? path.join(path.dirname(appDirectory), 'data')
+      : path.join(path.dirname(appDirectory), `${path.basename(appDirectory)}-data`);
   const previousDefault = path.join(localAppData, 'Programs', 'AgentValue', 'data');
   const legacy = path.join(home, '.agentvault');
-  if (target !== previousDefault && fs.existsSync(path.join(previousDefault, databaseFile)))
+  if (fs.existsSync(path.join(previousAdjacent, databaseFile)))
+    await copyData(previousAdjacent, target, databaseFile);
+  else if (target !== previousDefault && fs.existsSync(path.join(previousDefault, databaseFile)))
     await copyData(previousDefault, target, databaseFile);
   else if (fs.existsSync(path.join(legacy, legacyDatabaseFile)))
     await copyData(legacy, target, legacyDatabaseFile);

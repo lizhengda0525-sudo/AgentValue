@@ -13,7 +13,7 @@ if (-not $testRoot.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase))
 }
 $appDirectory = Join-Path $testRoot 'AgentValue'
 $program = Join-Path $appDirectory 'AgentValue.exe'
-$data = Join-Path $testRoot 'AgentValue-data'
+$data = Join-Path $appDirectory 'data'
 $marker = Join-Path $data 'installer-test.txt'
 $existingInstall = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
   Where-Object { $_.DisplayName -like 'AgentValue*' }
@@ -26,6 +26,9 @@ try {
   $uninstallEntry = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
     Where-Object { $_.DisplayName -like 'AgentValue*' -and $_.UninstallString -like "*$appDirectory*" }
   if (-not $uninstallEntry) { throw 'Windows uninstall entry is missing' }
+
+  node scripts/installed-updater-smoke.mjs $program $testRoot
+  if ($LASTEXITCODE -ne 0) { throw 'Custom-path installed app disabled software updates' }
 
   New-Item -ItemType Directory -Force -Path $data | Out-Null
   'preserve-data' | Set-Content -LiteralPath $marker -Encoding ascii
@@ -47,7 +50,7 @@ try {
   $uninstallEntry = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
     Where-Object { $_.DisplayName -like 'AgentValue*' -and $_.UninstallString -like "*$appDirectory*" }
   if ($uninstallEntry) { throw 'Windows uninstall entry remains after uninstall' }
-  Write-Output 'Chosen install path survived upgrade; uninstall preserved sibling data.'
+  Write-Output 'Chosen install path survived upgrade; uninstall preserved data inside the install directory.'
 } finally {
   $uninstaller = Join-Path $appDirectory 'Uninstall AgentValue.exe'
   if (Test-Path -LiteralPath $uninstaller) {
