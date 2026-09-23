@@ -20,6 +20,11 @@ const allowed = new Set([
   'inspectBackup',
   'restoreBackup',
   'manageImage',
+  'chooseDataLocation',
+  'softwareStatus',
+  'checkSoftwareUpdate',
+  'downloadSoftwareUpdate',
+  'installSoftwareUpdate',
 ]);
 contextBridge.exposeInMainWorld('vault', {
   call: async (operation, input) => {
@@ -29,4 +34,9 @@ contextBridge.exposeInMainWorld('vault', {
     return result.data;
   },
   filePath: (file) => webUtils.getPathForFile(file),
+  onUpdateStatus: (listener) => {
+    const handler = (_event, status) => listener(status);
+    ipcRenderer.on('agentvalue:update-status', handler);
+    return () => ipcRenderer.removeListener('agentvalue:update-status', handler);
+  },
 });

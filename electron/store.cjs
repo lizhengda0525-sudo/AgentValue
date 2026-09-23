@@ -5,7 +5,14 @@ const { randomUUID, createHash } = require('node:crypto');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { parse } = require('yaml');
-const { parts, inventory, inspectBackup, recoverRestore, writeJournal } = require('./backup.cjs');
+const {
+  databaseFile,
+  parts,
+  inventory,
+  inspectBackup,
+  recoverRestore,
+  writeJournal,
+} = require('./backup.cjs');
 const run = promisify(execFile);
 const now = () => new Date().toISOString();
 const id = () => randomUUID();
@@ -140,11 +147,11 @@ class Vault {
     this.recoverImports();
   }
   openDatabase() {
-    this.db = new DatabaseSync(path.join(this.root, 'agentvault.db'));
+    this.db = new DatabaseSync(path.join(this.root, databaseFile));
     const version = this.db.prepare('PRAGMA user_version').get().user_version;
     if (version > 2) {
       this.db.close();
-      throw new Error('此数据目录来自更新版本，请使用新版 AgentVault 打开');
+      throw new Error('此数据目录来自更新版本，请使用新版 AgentValue 打开');
     }
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS prompts (id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK(kind IN ('text','image')), title TEXT NOT NULL, content TEXT NOT NULL, category TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '[]', notes TEXT NOT NULL DEFAULT '', favorite INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, used_at TEXT);
@@ -619,22 +626,22 @@ class Vault {
     assert(resolved !== this.root && !within(this.root, resolved), '备份请选择数据目录以外的位置');
     const target = path.join(
       resolved,
-      `AgentVault-backup-${now().replace(/[:.]/g, '-')}-${id().slice(0, 8)}`,
+      `AgentValue-backup-${now().replace(/[:.]/g, '-')}-${id().slice(0, 8)}`,
     );
     fs.mkdirSync(target);
-    await backup(this.db, path.join(target, 'agentvault.db'));
+    await backup(this.db, path.join(target, databaseFile));
     for (const dir of ['skills', 'images'])
       fs.cpSync(path.join(this.root, dir), path.join(target, dir), { recursive: true });
     fs.writeFileSync(
       path.join(target, 'manifest.json'),
       JSON.stringify(
         {
-          app: 'AgentVault',
+          app: 'AgentValue',
           schema: 2,
           checksums: inventory(target).files,
           createdAt: now(),
           restore:
-            '退出 AgentVault 后，将 agentvault.db、skills 和 images 复制到原数据目录，旧库请先另存。Git 缓存无需恢复。',
+            '退出 AgentValue 后，将 agentvalue.db、skills 和 images 复制到原数据目录，旧库请先另存。Git 缓存无需恢复。',
         },
         null,
         2,
@@ -668,19 +675,35 @@ class Vault {
       stage = path.join(this.root, 'staging', stageName);
     fs.mkdirSync(path.join(stage, 'next'), { recursive: true });
     fs.mkdirSync(path.join(stage, 'previous'));
-    for (const part of [...parts, 'manifest.json'])
-      fs.cpSync(path.join(preview.root, part), path.join(stage, 'next', part), { recursive: true });
-    assert(
-      inspectBackup(path.join(stage, 'next')).fingerprint === preview.fingerprint,
-      '复制期间备份发生变化，请重新选择',
+    fs.copyFileSync(
+      path.join(preview.root, preview.sourceDatabase),
+      path.join(stage, 'next', databaseFile),
     );
+    for (const part of ['skills', 'images'])
+      fs.cpSync(path.join(preview.root, part), path.join(stage, 'next', part), { recursive: true });
+    const nextFiles = inventory(path.join(stage, 'next')).files;
+    for (const [file, hash] of Object.entries(nextFiles))
+      assert(
+        preview.files[file === databaseFile ? preview.sourceDatabase : file] === hash,
+        '复制期间备份发生变化，请重新选择',
+      );
+    fs.writeFileSync(
+      path.join(stage, 'next', 'manifest.json'),
+      JSON.stringify({
+        app: 'AgentValue',
+        schema: preview.schema,
+        createdAt: preview.createdAt,
+        checksums: nextFiles,
+      }),
+    );
+    inspectBackup(path.join(stage, 'next'));
     const journal = path.join(this.root, 'restore-journal.json');
     this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
     this.db.close();
     try {
       writeJournal(journal, { stage: stageName, committed: false });
       for (const suffix of ['-wal', '-shm'])
-        fs.rmSync(path.join(this.root, 'agentvault.db' + suffix), { force: true });
+        fs.rmSync(path.join(this.root, databaseFile + suffix), { force: true });
       for (const part of parts) {
         fs.renameSync(path.join(this.root, part), path.join(stage, 'previous', part));
         fs.renameSync(path.join(stage, 'next', part), path.join(this.root, part));

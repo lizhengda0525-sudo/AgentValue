@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { Vault } = require('../electron/store.cjs');
-const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentvault-github-'));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentvalue-github-'));
 const vault = new Vault(root);
 try {
   const scan = await vault.scanGithub('https://github.com/openai/skills');

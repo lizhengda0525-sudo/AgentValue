@@ -14,7 +14,7 @@ const png = Buffer.from(
   'base64',
 );
 function setup(t) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentvault-phase1-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentvalue-phase1-'));
   const vault = new Vault(path.join(root, 'vault'));
   const image = path.join(root, 'image.png');
   fs.writeFileSync(image, png);
@@ -201,7 +201,7 @@ test('legacy schema 1 backup migrates while keeping prompt content and images', 
   vault.savePrompt({ kind: 'image', title: 'legacy', content: '正文', references: [image] });
   const target = await vault.exportBackup(root);
   const { DatabaseSync } = require('node:sqlite');
-  const db = new DatabaseSync(path.join(target, 'agentvault.db'));
+  const db = new DatabaseSync(path.join(target, 'agentvalue.db'));
   db.exec(
     'ALTER TABLE prompts DROP COLUMN cover_id; ALTER TABLE images DROP COLUMN position; PRAGMA user_version=1;',
   );

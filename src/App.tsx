@@ -36,7 +36,7 @@ import {
 import { ModalShell } from './ModalShell';
 import { TemplateForm, RestoreForm, ImageTools } from './AssetTools';
 import { templateVariables, resolveTemplate } from './template';
-import type { BackupPreview, Media, Prompt, Scan, Skill, State } from './types';
+import type { BackupPreview, Media, Prompt, Scan, Skill, SoftwareStatus, State } from './types';
 
 type Page = 'home' | 'skills' | 'text' | 'image' | 'settings';
 type Modal =
@@ -597,6 +597,8 @@ function SkillForm({
 
 export default function App() {
   const [state, setState] = useState<State>({ prompts: [], skills: [], root: '', schema: 1 });
+  const [software, setSoftware] = useState<SoftwareStatus>({ phase: 'idle' });
+  const announcedVersion = useRef('');
   const [loading, setLoading] = useState(true),
     [fatal, setFatal] = useState('');
   const [page, setPage] = useState<Page>('home'),
@@ -623,13 +625,27 @@ export default function App() {
   };
   useEffect(() => {
     if (!window.vault) {
-      setFatal('请通过 AgentVault 桌面启动器打开应用。');
+      setFatal('请通过 AgentValue 桌面启动器打开应用。');
       setLoading(false);
       return;
     }
     refresh()
       .catch((e) => setFatal(e.message))
       .finally(() => setLoading(false));
+    call<SoftwareStatus>('softwareStatus')
+      .then(setSoftware)
+      .catch(() => {});
+    return window.vault.onUpdateStatus((status) => {
+      setSoftware((previous) => ({ ...previous, ...status }));
+      if (
+        status.phase === 'available' &&
+        status.version &&
+        announcedVersion.current !== status.version
+      ) {
+        announcedVersion.current = status.version;
+        notify(`发现 AgentValue ${status.version}，可在设置中更新`);
+      }
+    });
   }, []);
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
@@ -932,7 +948,7 @@ export default function App() {
     return (
       <div className="fatal">
         <Archive size={38} />
-        <h1>AgentVault</h1>
+        <h1>AgentValue</h1>
         <p>{fatal}</p>
         <button onClick={() => location.reload()}>重试</button>
       </div>
@@ -945,7 +961,7 @@ export default function App() {
             <Layers3 size={24} />
           </span>
           <span>
-            AgentVault<small>你的 AI 资产收藏库</small>
+            AgentValue<small>你的 AI 资产收藏库</small>
           </span>
         </button>
         <div className="workspace">
@@ -987,7 +1003,7 @@ export default function App() {
             onClick={() => go('settings')}
           >
             <Settings2 size={18} />
-            设置<span className="version">v0.2</span>
+            设置<span className="version">v{software.currentVersion || '…'}</span>
           </button>
         </div>
       </aside>
@@ -1018,6 +1034,16 @@ export default function App() {
           <span className="offline-badge">
             <span /> 本地模式
           </span>
+          {['available', 'downloading', 'ready'].includes(software.phase) && (
+            <button className="update-shortcut" onClick={() => go('settings')}>
+              <RefreshCw size={14} />
+              {software.phase === 'ready'
+                ? '更新已就绪'
+                : software.phase === 'downloading'
+                  ? `下载中 ${software.percent || 0}%`
+                  : `发现新版本 ${software.version}`}
+            </button>
+          )}
         </header>
         <main>
           {loading ? (
@@ -1441,6 +1467,60 @@ export default function App() {
                   <FolderOpen size={16} />
                   打开数据目录
                 </button>
+                <button
+                  className="button secondary"
+                  disabled={busy}
+                  onClick={async () => {
+                    const target = await perform<string>('chooseDataLocation');
+                    if (target) notify('数据已迁移，正在重新打开软件');
+                  }}
+                >
+                  <HardDrive size={16} />
+                  更改数据位置
+                </button>
+                <small>请选择空文件夹。迁移成功前会保留原数据，软件随后重新启动。</small>
+              </div>
+              <div className="settings-card">
+                <h2>
+                  <RefreshCw size={19} />
+                  软件更新
+                </h2>
+                <p>
+                  当前版本：{software.currentVersion || '读取中'}。软件运行时会定时检查 GitHub
+                  发布。
+                </p>
+                {software.phase === 'available' && (
+                  <p>发现新版本 {software.version}，可以下载安装。</p>
+                )}
+                {software.phase === 'downloading' && <p>正在下载：{software.percent || 0}%</p>}
+                {software.phase === 'ready' && <p>版本 {software.version} 已下载，重启后安装。</p>}
+                {software.phase === 'error' && <p role="alert">{software.message}</p>}
+                {software.phase === 'unavailable' && <p>{software.message}</p>}
+                <button
+                  className="button secondary"
+                  disabled={busy || software.phase === 'downloading' || software.phase === 'ready'}
+                  onClick={() => perform('checkSoftwareUpdate')}
+                >
+                  检查软件更新
+                </button>
+                {software.phase === 'available' && (
+                  <button
+                    className="button primary"
+                    disabled={busy}
+                    onClick={() => perform('downloadSoftwareUpdate')}
+                  >
+                    下载更新
+                  </button>
+                )}
+                {software.phase === 'ready' && (
+                  <button
+                    className="button primary"
+                    disabled={busy}
+                    onClick={() => perform('installSoftwareUpdate')}
+                  >
+                    重启并安装
+                  </button>
+                )}
               </div>
               <div className="settings-card">
                 <h2>
@@ -1514,7 +1594,8 @@ export default function App() {
                 </button>
               </div>
               <p className="settings-version">
-                AgentVault 0.2.0 · Schema {state.schema} · 个人本地收藏工具
+                AgentValue {software.currentVersion || '…'} · Schema {state.schema} ·
+                个人本地收藏工具
               </p>
             </>
           )}

@@ -30,13 +30,18 @@ jobs:
         run: pnpm format:check
       - name: Test data and file operations
         run: pnpm test
-      - name: Build Windows portable app
+      - name: Build Windows installer
         run: pnpm package
       - name: Test the packaged desktop app
         shell: pwsh
         run: |
-          $env:AGENTVAULT_EXECUTABLE = Join-Path $env:GITHUB_WORKSPACE 'release/AgentVault-win32-x64/AgentVault.exe'
+          $env:AGENTVALUE_EXECUTABLE = Join-Path $env:GITHUB_WORKSPACE 'release/win-unpacked/AgentValue.exe'
           pnpm test:ui
+      - name: Test install and uninstall data preservation
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          ./scripts/installer-smoke.ps1 -Installer "release/AgentValue-Setup-$version-windows-x64.exe"
       - name: Upload test evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -45,9 +50,12 @@ jobs:
           path: artifacts/
           if-no-files-found: ignore
           retention-days: 14
-      - name: Upload portable app
+      - name: Upload Windows installer
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: AgentVault-windows-x64
-          path: release/AgentVault-win32-x64/
+          name: AgentValue-windows-x64
+          path: |
+            release/AgentValue-Setup-*-windows-x64.exe
+            release/latest.yml
+            release/*.blockmap
           retention-days: 14

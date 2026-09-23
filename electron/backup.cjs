@@ -3,7 +3,9 @@ const path = require('node:path');
 const os = require('node:os');
 const { createHash } = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
-const parts = ['agentvault.db', 'skills', 'images'];
+const databaseFile = 'agentvalue.db';
+const legacyDatabaseFile = 'agentvault.db';
+const parts = [databaseFile, 'skills', 'images'];
 const ensure = (condition, message) => {
   if (!condition) throw new Error(message);
 };
@@ -43,7 +45,7 @@ function safeFile(root, relative) {
   }
   return resolved;
 }
-function inventory(root) {
+function inventory(root, included = parts) {
   const files = {};
   let total = 0,
     count = 0;
@@ -59,7 +61,7 @@ function inventory(root) {
       files[relative] = hashFile(file);
     }
   }
-  for (const part of parts) walk(part);
+  for (const part of included) walk(part);
   return { files, bytes: total };
 }
 function inspectBackup(source) {
@@ -72,15 +74,16 @@ function inspectBackup(source) {
   ensure(fs.statSync(manifestPath).size < 20 * 1024 ** 2, '备份清单过大');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   ensure(
-    manifest.app === 'AgentVault' && [1, 2].includes(manifest.schema),
+    ['AgentValue', 'AgentVault'].includes(manifest.app) && [1, 2].includes(manifest.schema),
     '不支持的备份格式或版本',
   );
+  const sourceDatabase = manifest.app === 'AgentVault' ? legacyDatabaseFile : databaseFile;
   for (const suffix of ['-wal', '-shm'])
     ensure(
-      !fs.existsSync(path.join(root, 'agentvault.db' + suffix)),
+      !fs.existsSync(path.join(root, sourceDatabase + suffix)),
       '备份含有 WAL/SHM 文件，请重新导出完整备份',
     );
-  const contents = inventory(root);
+  const contents = inventory(root, [sourceDatabase, 'skills', 'images']);
   if (manifest.checksums) {
     ensure(
       JSON.stringify(Object.keys(contents.files).sort()) ===
@@ -91,12 +94,12 @@ function inspectBackup(source) {
       ensure(manifest.checksums[file] === hash, `备份校验失败：${file}`);
   }
   // SQLite may create WAL/SHM even for a read-only connection. Inspect a disposable copy.
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'agentvault-inspect-'));
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'agentvalue-inspect-'));
   let db;
   try {
-    const database = path.join(scratch, 'agentvault.db');
-    fs.copyFileSync(path.join(root, 'agentvault.db'), database);
-    ensure(hashFile(database) === contents.files['agentvault.db'], '校验期间数据库发生变化');
+    const database = path.join(scratch, databaseFile);
+    fs.copyFileSync(path.join(root, sourceDatabase), database);
+    ensure(hashFile(database) === contents.files[sourceDatabase], '校验期间数据库发生变化');
     db = new DatabaseSync(database, { readOnly: true });
     const version = db.prepare('PRAGMA user_version').get().user_version;
     ensure(version === manifest.schema, '清单与数据库版本不一致');
@@ -157,6 +160,8 @@ function inspectBackup(source) {
         generations: generations.length,
       },
       fingerprint: createHash('sha256').update(JSON.stringify(contents.files)).digest('hex'),
+      files: contents.files,
+      sourceDatabase,
     };
   } finally {
     db?.close();
@@ -180,9 +185,18 @@ function recoverRestore(root) {
       }
     }
     for (const suffix of ['-wal', '-shm'])
-      fs.rmSync(path.join(root, 'agentvault.db' + suffix), { force: true });
+      fs.rmSync(path.join(root, databaseFile + suffix), { force: true });
   }
   fs.unlinkSync(journal);
   fs.rmSync(stage, { recursive: true, force: true });
 }
-module.exports = { parts, safeFile, inventory, inspectBackup, recoverRestore, writeJournal };
+module.exports = {
+  databaseFile,
+  legacyDatabaseFile,
+  parts,
+  safeFile,
+  inventory,
+  inspectBackup,
+  recoverRestore,
+  writeJournal,
+};

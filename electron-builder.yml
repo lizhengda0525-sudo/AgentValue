@@ -1,0 +1,27 @@
+appId: io.github.lizhengda0525-sudo.agentvalue
+productName: AgentValue
+directories:
+  output: release
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+asar: true
+win:
+  icon: assets/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: true
+  perMachine: false
+  deleteAppDataOnUninstall: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  artifactName: AgentValue-Setup-${version}-windows-x64.exe
+  include: build/installer.nsh
+publish:
+  provider: github
+  owner: lizhengda0525-sudo
+  repo: AgentValue

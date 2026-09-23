@@ -51,6 +51,21 @@ export type Skill = {
   updated_at: string;
 };
 export type State = { prompts: Prompt[]; skills: Skill[]; root: string; schema: number };
+export type SoftwareStatus = {
+  phase:
+    | 'idle'
+    | 'unavailable'
+    | 'checking'
+    | 'available'
+    | 'current'
+    | 'downloading'
+    | 'ready'
+    | 'error';
+  currentVersion?: string;
+  version?: string;
+  percent?: number;
+  message?: string;
+};
 export type Scan = {
   token: string;
   candidates: { key: string; name: string; description: string; count: number }[];
@@ -68,6 +83,7 @@ declare global {
     vault: {
       call: <T = unknown>(operation: string, input?: unknown) => Promise<T>;
       filePath: (file: File) => string;
+      onUpdateStatus: (listener: (status: SoftwareStatus) => void) => () => void;
     };
   }
 }

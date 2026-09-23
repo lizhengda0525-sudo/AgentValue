@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 const { Vault, within } = require('../electron/store.cjs');
 const fixtures = [];
 function fixture(t) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentvault-test-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentvalue-test-'));
   const vault = new Vault(path.join(root, 'vault'));
   t.after(() => {
     try {
@@ -97,7 +97,7 @@ test('failed image import rolls back entire prompt and validates media signature
     /评分/,
   );
   assert.equal(vault.state().prompts.length, 0);
-  assert.throws(() => vault.media('../agentvault.db'), /不存在/);
+  assert.throws(() => vault.media('../agentvalue.db'), /不存在/);
 });
 test('local skill import deduplicates, parses YAML, copies files, refuses overwrite and escape', (t) => {
   const { root, vault } = fixture(t);

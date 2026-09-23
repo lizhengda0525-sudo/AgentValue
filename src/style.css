@@ -1321,6 +1321,18 @@ main {
   color: #b7afc1;
   margin-top: 30px;
 }
+.update-shortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #c9b8e7;
+  border-radius: 7px;
+  background: #f4edff;
+  color: #654a91;
+  padding: 7px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
 .overlay {
   position: fixed;
   inset: 0;

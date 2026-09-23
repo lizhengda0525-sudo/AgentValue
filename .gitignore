@@ -1,6 +1,8 @@
 node_modules/
 dist/
 release/
+.cache/
+.pnpm-store/
 artifacts/
 *.log
 .test-data/

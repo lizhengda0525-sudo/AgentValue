@@ -12,7 +12,14 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { Vault } = require('./store.cjs');
 const { thumbnailService } = require('./thumbnails.cjs');
-const fs = require('node:fs');
+const { databaseFile } = require('./backup.cjs');
+const {
+  settingsFile,
+  saveDataChoice,
+  copyData,
+  resolveDataDirectory,
+} = require('./data-location.cjs');
+const { createAppUpdater } = require('./app-update.cjs');
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'vault',
@@ -21,9 +28,12 @@ protocol.registerSchemesAsPrivileged([
 ]);
 let vault,
   win,
+  appUpdater,
   backupRunning = false;
 let activeCalls = 0;
-const isolatedData = process.env.AGENTVAULT_DATA_DIR;
+const isolatedData = process.env.AGENTVALUE_DATA_DIR || process.env.AGENTVAULT_DATA_DIR;
+const dataSettings = settingsFile();
+app.setName('AgentValue');
 if (isolatedData) app.setPath('userData', path.join(isolatedData, 'electron'));
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -37,8 +47,15 @@ if (!app.requestSingleInstanceLock()) {
   });
   app
     .whenReady()
-    .then(() => {
-      vault = new Vault(isolatedData || path.join(app.getPath('home'), '.agentvault'));
+    .then(async () => {
+      app.setAppUserModelId('io.github.lizhengda0525-sudo.agentvalue');
+      const dataDirectory = await resolveDataDirectory({
+        executable: app.getPath('exe'),
+        home: app.getPath('home'),
+        configFile: dataSettings,
+        override: isolatedData,
+      });
+      vault = new Vault(dataDirectory);
       const thumbnail = thumbnailService(vault);
       protocol.handle('vault', async (request) => {
         try {
@@ -57,7 +74,7 @@ if (!app.requestSingleInstanceLock()) {
           throw new Error('无效来源');
         activeCalls++;
         try {
-          if (backupRunning && !['state'].includes(operation))
+          if (backupRunning && !['state', 'softwareStatus'].includes(operation))
             throw new Error('正在备份或恢复，请稍后再试');
           let data;
           switch (operation) {
@@ -161,6 +178,43 @@ if (!app.requestSingleInstanceLock()) {
               if (error) throw new Error(error);
               break;
             }
+            case 'chooseDataLocation': {
+              if (isolatedData) throw new Error('测试数据目录不能在应用内更改');
+              if (activeCalls > 1 || vault.busy.size)
+                throw new Error('请等待当前操作完成后再迁移数据');
+              const result = await dialog.showOpenDialog(win, {
+                title: '选择新的 AgentValue 数据文件夹（必须为空）',
+                properties: ['openDirectory', 'createDirectory'],
+              });
+              if (result.canceled) break;
+              const target = result.filePaths[0];
+              if (path.resolve(target) === vault.root) {
+                data = vault.root;
+                break;
+              }
+              await copyData(vault.root, target, databaseFile, vault.db);
+              saveDataChoice(dataSettings, target);
+              data = target;
+              setImmediate(() => {
+                app.relaunch();
+                app.exit(0);
+              });
+              break;
+            }
+            case 'softwareStatus':
+              data = { ...appUpdater.status(), currentVersion: app.getVersion() };
+              break;
+            case 'checkSoftwareUpdate':
+              data = await appUpdater.check();
+              break;
+            case 'downloadSoftwareUpdate':
+              data = await appUpdater.download();
+              break;
+            case 'installSoftwareUpdate':
+              if (activeCalls > 1 || vault.busy.size)
+                throw new Error('请等待当前操作完成后再更新软件');
+              data = appUpdater.install();
+              break;
             case 'checkUpdate':
               data = await vault.checkUpdate(input.id);
               break;
@@ -224,7 +278,7 @@ if (!app.requestSingleInstanceLock()) {
         minWidth: 980,
         minHeight: 680,
         backgroundColor: '#f5f6f8',
-        title: 'AgentVault',
+        title: 'AgentValue',
         autoHideMenuBar: true,
         show: false,
         webPreferences: {
@@ -244,12 +298,18 @@ if (!app.requestSingleInstanceLock()) {
       win.webContents.on('render-process-gone', (_e, details) =>
         console.error('Renderer stopped:', details.reason),
       );
+      appUpdater = createAppUpdater(
+        win,
+        app.isPackaged &&
+          !isolatedData &&
+          path.basename(path.dirname(app.getPath('exe'))).toLowerCase() === 'app',
+      );
       app.on('activate', () => {
         if (win) win.show();
       });
     })
     .catch((e) => {
-      dialog.showErrorBox('AgentVault 启动失败', e.message);
+      dialog.showErrorBox('AgentValue 启动失败', e.message);
       app.quit();
     });
 }

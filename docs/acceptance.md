@@ -1,4 +1,14 @@
-# AgentVault 验收记录
+# AgentValue 验收记录
+
+## 0.3.1 安装、迁移与更新（2026-09-23）
+
+- Windows x64 安装包生成 `AgentValue-Setup-0.3.1-windows-x64.exe`、`latest.yml` 与 blockmap；安装版程序位于 `AgentValue/app`，数据位于同级 `AgentValue/data`。
+- 旧版 `.agentvault` 复制迁移、新版数据位置切换、旧版备份恢复均有专项测试；迁移完成前保留原库。25 项数据测试通过。
+- 打包后的真实 Electron 窗口流程通过，渲染异常为 0。受限执行环境会阻止 Electron 子进程，因此窗口测试在正常权限下完成。
+- 静默安装与卸载实测通过：卸载程序后，`data` 中的测试文件仍存在。
+- 本地完整升级演练通过：0.3.0 检测 0.3.1，下载、重启安装成功，测试收藏未丢失。
+- 在已安装的 0.3.1 中选择空文件夹迁移测试收藏：新位置生效，原位置和内容保留。测试后已清理临时安装与测试设置，保留用户数据目录。
+- GitHub 标签发布流程已配置为在 Windows CI 中重复执行构建、测试、安装器验证，然后发布同一份安装包与更新信息；正式发布结果另以 GitHub Release 为准。
 
 ## 0.2.0 第一批扩展（2026-09-14）
 
@@ -28,12 +38,11 @@
 
 ## 交付
 
-- `release/AgentVault-win32-x64/AgentVault.exe`：可直接运行的 Windows x64 便携版。
-- `Start-AgentVault.vbs`：项目根目录双击启动入口。
+- 当时使用旧名 `AgentVault` 发布 Windows x64 便携版 ZIP；当前交付已改为 AgentValue 安装包。
 - `README.md`：功能、数据目录、恢复方法、开发命令与 V1 边界。
 - `artifacts/home.png`、`gallery.png`、`image-detail.png`：隔离测试窗口截图。
 - `artifacts/smoke-results.json`、`github-results.json`：自动验收结果。
 
-便携版已使用隔离数据目录完成重启与持久化验证。正式个人库使用用户主目录下 `.agentvault`，没有预装测试数据。
+当时的便携版使用隔离数据目录完成重启与持久化验证。旧版正式个人库使用用户主目录下 `.agentvault`，没有预装测试数据。
 
 尚未提供安装器、代码签名、私有仓库认证、在线图片生成、自动垃圾清理或应用内备份恢复。这些不影响当前个人本地收藏流程。

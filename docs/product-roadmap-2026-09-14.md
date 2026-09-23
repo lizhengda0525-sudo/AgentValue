@@ -1,10 +1,10 @@
-# AgentVault 优化与功能扩展分析
+# AgentValue 优化与功能扩展分析
 
-调研完成于 2026-09-14；参考仓库拉取于 2026-09-13。当前项目基线为 `67b62f623abb06c3ee1bc16140ed3e4e21e62126`。本报告依据本地源码与参考项目的选定源码，属于产品和静态实现分析；没有运行参考项目，也没有测量 AgentVault 的大库性能。下文的版本划分是建议，尚未实现。
+调研完成于 2026-09-14；参考仓库拉取于 2026-09-13。当前项目基线为 `67b62f623abb06c3ee1bc16140ed3e4e21e62126`。本报告依据本地源码与参考项目的选定源码，属于产品和静态实现分析；没有运行参考项目，也没有测量 AgentValue 的大库性能。下文的版本划分是建议，尚未实现。
 
 **核心判断**
 
-AgentVault 已经具备有价值的组合：Skill 独立收藏副本、文本 Prompt、图片 Prompt 和带正文快照的实验记录。继续发展的重点应是让这些资产更容易收集、找到、复用和分享，同时保留来源与使用结果。
+AgentValue 已经具备有价值的组合：Skill 独立收藏副本、文本 Prompt、图片 Prompt 和带正文快照的实验记录。继续发展的重点应是让这些资产更容易收集、找到、复用和分享，同时保留来源与使用结果。
 
 最值得形成的特色是：一套任务所需的 Skill、Prompt、参考图和成功案例能一起保存、一起复用。建议先把个人使用闭环做好，再通过可选择内容的资产包支持协作者。在线生成、多模型调用和云端实时协作会引入另一组维护成本，可以在出现明确需求后评估。
 
@@ -12,7 +12,7 @@ AgentVault 已经具备有价值的组合：Skill 独立收藏副本、文本 Pr
 
 以下仓库以浅克隆、稀疏检出的方式保存于 `artifacts/research-2026-09-13/repos/`，包含选定源码，未安装依赖或运行脚本。该目录受现有 `.gitignore` 排除。链接固定到本次检出的提交，便于复核。
 
-| 项目 | 本次提交 | 已核查的参考点 | 对 AgentVault 的启发 |
+| 项目 | 本次提交 | 已核查的参考点 | 对 AgentValue 的启发 |
 | --- | --- | --- | --- |
 | [linshenkx/prompt-optimizer](https://github.com/linshenkx/prompt-optimizer/tree/1ee326fc891ea514744761a16b272408b29fb711) | `1ee326fc` | 变量模板、收藏资产版本、按选择导出收藏 | 从静态正文升级为可填写、可追溯的模板 |
 | [vercel-labs/skills](https://github.com/vercel-labs/skills/tree/d667282815248da03a08a18272b5d2eef9caf77c) | `d6672828` | 来源、子路径、版本引用、目录内容哈希与安装锁文件 | 按 Skill 本身判断更新，记录部署到哪些项目 |
@@ -20,7 +20,7 @@ AgentVault 已经具备有价值的组合：Skill 独立收藏副本、文本 Pr
 | [EddieTYP/image-prompt-library](https://github.com/EddieTYP/image-prompt-library/tree/92fc666d670472b0b51806a0e61ff64fab6e34d3) | `92fc666d` | 缩略图与预览图路径、文件哈希、全文索引、搜索条件解析 | 改善图片库性能、重复导入和组合筛选 |
 | [wbgcoding/Prompt-Saver](https://github.com/wbgcoding/Prompt-Saver/tree/a593f875295a882e7b32657396880a38156ac430) | `a593f875` | 独立快捷搜索窗口、变量填写窗口 | 在其他应用中也能快速找到并复制 Prompt |
 
-本次核对的许可证：`skills`、`DiffusionToolkit` 为 MIT；`prompt-optimizer` 为 AGPL-3.0-only；`image-prompt-library` 的 README 标注 AGPL-3.0-or-later。`Prompt-Saver` 根目录未发现项目许可证，依赖声明不等于项目授权。这些项目用于设计与源码结构参考；如需直接引入代码，应单独核对适用许可证。AgentVault 当前也应由所有者明确开源许可证，方便外部协作者判断复用边界。
+本次核对的许可证：`skills`、`DiffusionToolkit` 为 MIT；`prompt-optimizer` 为 AGPL-3.0-only；`image-prompt-library` 的 README 标注 AGPL-3.0-or-later。`Prompt-Saver` 根目录未发现项目许可证，依赖声明不等于项目授权。这些项目用于设计与源码结构参考；如需直接引入代码，应单独核对适用许可证。AgentValue 当前也应由所有者明确开源许可证，方便外部协作者判断复用边界。
 
 **当前实现中最需要关注的六处问题**
 
@@ -75,13 +75,13 @@ AgentVault 已经具备有价值的组合：Skill 独立收藏副本、文本 Pr
 
 5. **选择性资产分享包：协作价值高，投入中到大。**
 
-   你已经提出让另一位协作者完整使用项目。当前 GitHub 分发解决了程序与源码交付；每个人的收藏库仍然独立。下一步最实用的是勾选若干 Skill、Prompt、图片和实验，导出一个可移植的 `.agentvault-pack`，协作者导入后直接使用。
+   你已经提出让另一位协作者完整使用项目。当前 GitHub 分发解决了程序与源码交付；每个人的收藏库仍然独立。下一步最实用的是勾选若干 Skill、Prompt、图片和实验，导出一个可移植的 `.agentvalue-pack`，协作者导入后直接使用。
 
    包内包含版本化清单、相对路径、来源、正文版本及文件哈希。导入前预览内容与冲突，提供跳过重复项、另存副本、选择更新；以稳定资产 ID 和版本关系识别冲突，不能仅按标题覆盖。压缩包读取需验证路径与体积，失败时保持原库完整。
 
    在此基础上增加“集合”：例如把“论文写作 Skill + 摘要模板 + 审稿模板 + 成功案例”组成一个可分享的任务包。它能把当前三个独立分类连接起来。整库备份继续服务灾难恢复；资产包服务有选择的交换。不要让多台电脑直接共同写同一个同步盘 SQLite 文件。
 
-   参考：[收藏资产版本与选择性导出接口](https://github.com/linshenkx/prompt-optimizer/blob/1ee326fc891ea514744761a16b272408b29fb711/packages/core/src/services/favorite/types.ts#L146)。资产包格式与冲突策略属于对 AgentVault 的设计建议，不能直接视为该参考项目现成实现。
+   参考：[收藏资产版本与选择性导出接口](https://github.com/linshenkx/prompt-optimizer/blob/1ee326fc891ea514744761a16b272408b29fb711/packages/core/src/services/favorite/types.ts#L146)。资产包格式与冲突策略属于对 AgentValue 的设计建议，不能直接视为该参考项目现成实现。
 
 6. **Skill 来源与部署管理：优先级中高，投入中到大。**
 

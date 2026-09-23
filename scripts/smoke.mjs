@@ -5,10 +5,10 @@ import os from 'node:os';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const data = fs.mkdtempSync(path.join(os.tmpdir(), 'agentvault-ui-'));
+const data = fs.mkdtempSync(path.join(os.tmpdir(), 'agentvalue-ui-'));
 const artifacts = path.join(project, 'artifacts');
 fs.mkdirSync(artifacts, { recursive: true });
-const env = { ...process.env, AGENTVAULT_DATA_DIR: data };
+const env = { ...process.env, AGENTVALUE_DATA_DIR: data };
 delete env.ELECTRON_RUN_AS_NODE;
 const source = path.join(data, 'source', 'demo-skill');
 fs.mkdirSync(path.join(source, 'references'), { recursive: true });
@@ -22,8 +22,8 @@ const completed = [];
 let app;
 async function launch() {
   app = await electron.launch({
-    executablePath: process.env.AGENTVAULT_EXECUTABLE || undefined,
-    args: process.env.AGENTVAULT_EXECUTABLE ? [] : [project],
+    executablePath: process.env.AGENTVALUE_EXECUTABLE || undefined,
+    args: process.env.AGENTVALUE_EXECUTABLE ? [] : [project],
     cwd: project,
     env,
     timeout: 60000,
@@ -233,7 +233,7 @@ try {
   assert.equal(state.prompts.find((p) => p.kind === 'image').generations.length, 2);
   assert.equal(state.prompts.find((p) => p.kind === 'text').favorite, true);
   completed.push('Real Electron restart persistence');
-  const backups = fs.mkdtempSync(path.join(os.tmpdir(), 'agentvault-backup-ui-'));
+  const backups = fs.mkdtempSync(path.join(os.tmpdir(), 'agentvalue-backup-ui-'));
   await app.evaluate(({ dialog }, folder) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [folder] });
   }, backups);
