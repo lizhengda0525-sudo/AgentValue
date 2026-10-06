@@ -1,6 +1,8 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const allowed = new Set([
   'state',
+  'assistantState',
+  'assistantSave',
   'savePrompt',
   'addGeneration',
   'favorite',
@@ -35,6 +37,11 @@ contextBridge.exposeInMainWorld('vault', {
     return result.data;
   },
   filePath: (file) => webUtils.getPathForFile(file),
+  onQuickCapture: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on('agentvalue:quick-capture', handler);
+    return () => ipcRenderer.removeListener('agentvalue:quick-capture', handler);
+  },
   onUpdateStatus: (listener) => {
     const handler = (_event, status) => listener(status);
     ipcRenderer.on('agentvalue:update-status', handler);

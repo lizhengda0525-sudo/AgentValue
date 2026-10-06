@@ -7,6 +7,10 @@ const {
   shell,
   protocol,
   net,
+  Tray,
+  Menu,
+  Notification,
+  globalShortcut,
 } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -22,6 +26,7 @@ const {
 } = require('./data-location.cjs');
 const { createAppUpdater } = require('./app-update.cjs');
 const { uninstallerPath, isInstalledApp } = require('./installation.cjs');
+const { checkReminders } = require('./reminders.cjs');
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'vault',
@@ -33,7 +38,20 @@ let vault,
   appUpdater,
   backupRunning = false;
 let activeCalls = 0;
-const isolatedData = process.env.AGENTVALUE_DATA_DIR || process.env.AGENTVAULT_DATA_DIR;
+let tray,
+  quitting = false,
+  reminderInterval;
+const showWindow = () => {
+  if (win && !win.isDestroyed()) {
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  }
+};
+const isolatedData =
+  process.env.AGENTVALUE_DATA_DIR ||
+  process.env.AGENTVAULT_DATA_DIR ||
+  (!app.isPackaged ? path.join(__dirname, '../data') : undefined);
 const dataSettings = settingsFile();
 app.setName('AgentValue');
 if (isolatedData) app.setPath('userData', path.join(isolatedData, 'electron'));
@@ -80,6 +98,13 @@ if (!app.requestSingleInstanceLock()) {
             throw new Error('正在备份或恢复，请稍后再试');
           let data;
           switch (operation) {
+            case 'assistantState':
+              data = vault.assistantState();
+              break;
+            case 'assistantSave':
+              data = vault.assistantSave(input);
+              setImmediate(() => remind());
+              break;
             case 'state':
               data = vault.state();
               break;
@@ -312,6 +337,7 @@ if (!app.requestSingleInstanceLock()) {
         minHeight: 680,
         backgroundColor: '#f5f6f8',
         title: 'AgentValue',
+        icon: path.join(__dirname, '../assets/icon.ico'),
         autoHideMenuBar: true,
         show: false,
         webPreferences: {
@@ -327,6 +353,39 @@ if (!app.requestSingleInstanceLock()) {
         callback(false),
       );
       win.on('ready-to-show', () => win.show());
+      win.on('close', (event) => {
+        if (!quitting && tray) {
+          event.preventDefault();
+          win.hide();
+        }
+      });
+      try {
+        tray = new Tray(path.join(__dirname, '../assets/icon.ico'));
+        tray.setToolTip('AgentValue · 双击打开，右键退出');
+        tray.setContextMenu(
+          Menu.buildFromTemplate([
+            { label: '打开 AgentValue', click: showWindow },
+            {
+              label: '快速录入（Ctrl+Shift+Space）',
+              click: () => {
+                showWindow();
+                win.webContents.send('agentvalue:quick-capture');
+              },
+            },
+            { type: 'separator' },
+            { label: '退出', click: () => app.quit() },
+          ]),
+        );
+        tray.on('double-click', showWindow);
+      } catch {
+        tray = null;
+      }
+      globalShortcut.register('CommandOrControl+Shift+Space', () => {
+        showWindow();
+        win.webContents.send('agentvalue:quick-capture');
+      });
+      reminderInterval = setInterval(remind, 30000);
+      reminderInterval.unref();
       win.loadFile(path.join(__dirname, '../dist/index.html'));
       win.webContents.on('render-process-gone', (_e, details) =>
         console.error('Renderer stopped:', details.reason),
@@ -344,7 +403,32 @@ if (!app.requestSingleInstanceLock()) {
       app.quit();
     });
 }
+function remind() {
+  if (!vault || !win || win.isDestroyed() || backupRunning || !Notification.isSupported()) return;
+  try {
+    checkReminders(vault, (tasks) => {
+      const notice = new Notification({
+        title: tasks.length === 1 ? 'AgentValue · 事项提醒' : `AgentValue · ${tasks.length} 项待办`,
+        body: tasks
+          .slice(0, 3)
+          .map((task) => `${task.start || '09:00'} ${task.title}`)
+          .join('\n'),
+        silent: false,
+      });
+      notice.on('click', showWindow);
+      notice.show();
+    });
+  } catch (error) {
+    console.error('提醒检查失败：', error.message);
+  }
+}
+app.on('before-quit', () => {
+  quitting = true;
+});
 app.on('window-all-closed', () => app.quit());
 app.on('will-quit', () => {
+  clearInterval(reminderInterval);
+  globalShortcut.unregisterAll();
+  tray?.destroy();
   vault?.close();
 });

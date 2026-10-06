@@ -5,6 +5,7 @@ const { randomUUID, createHash } = require('node:crypto');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { parse } = require('yaml');
+const { migrateAssistant, readAssistant, saveAssistant } = require('./assistant-store.cjs');
 const {
   databaseFile,
   parts,
@@ -149,7 +150,7 @@ class Vault {
   openDatabase() {
     this.db = new DatabaseSync(path.join(this.root, databaseFile));
     const version = this.db.prepare('PRAGMA user_version').get().user_version;
-    if (version > 2) {
+    if (version > 3) {
       this.db.close();
       throw new Error('此数据目录来自更新版本，请使用新版 AgentValue 打开');
     }
@@ -175,6 +176,13 @@ class Vault {
         PRAGMA user_version=2;
         COMMIT;`);
     }
+    migrateAssistant(this.db);
+  }
+  assistantState() {
+    return readAssistant(this.db);
+  }
+  assistantSave(input) {
+    return saveAssistant(this.db, input);
   }
   recoverImports() {
     const folder = path.join(this.root, 'staging');
@@ -255,7 +263,7 @@ class Vault {
           favorite: !!s.favorite,
         })),
       root: this.root,
-      schema: 2,
+      schema: 3,
     };
   }
   savePrompt(input) {
@@ -637,7 +645,7 @@ class Vault {
       JSON.stringify(
         {
           app: 'AgentValue',
-          schema: 2,
+          schema: 3,
           checksums: inventory(target).files,
           createdAt: now(),
           restore:
@@ -709,6 +717,7 @@ class Vault {
         fs.renameSync(path.join(stage, 'next', part), path.join(this.root, part));
       }
       this.openDatabase();
+      this.db.prepare('UPDATE assistant_meta SET revision=? WHERE id=1').run(id());
       this.state();
       // Removing the journal commits the replacement. A crash before this rolls back on startup.
       fs.unlinkSync(journal);

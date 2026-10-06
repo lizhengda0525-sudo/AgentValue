@@ -1,7 +1,7 @@
 {
   "name": "agent-value",
   "productName": "AgentValue",
-  "version": "0.3.5",
+  "version": "2.0.0",
   "private": true,
   "packageManager": "pnpm@11.19.0",
   "engines": {
@@ -12,11 +12,12 @@
     "type": "git",
     "url": "https://github.com/lizhengda0525-sudo/AgentValue.git"
   },
-  "description": "本地 Skill、Prompt 与图片实验收藏库",
+  "description": "个人日程、事项、执行回顾与 AI 资产管理",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
+    "dev": "node scripts/dev.mjs",
+    "serve": "node scripts/serve.cjs",
     "build": "tsc --noEmit && vite build",
     "start": "electron .",
     "launch": "pnpm build && pnpm start",
@@ -28,7 +29,10 @@
     "package": "pnpm build && electron-builder --win nsis --x64 --publish never"
   },
   "dependencies": {
+    "antd": "^6.6.5",
+    "dayjs": "^1.11.23",
     "electron-updater": "6.8.9",
+    "ical.js": "^2.2.1",
     "lucide-react": "^0.577.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

@@ -5,6 +5,7 @@ directories:
 files:
   - dist/**/*
   - electron/**/*
+  - assets/icon.ico
   - package.json
 asar: true
 win:

@@ -1,5 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { useRef, type ReactNode } from 'react';
+import { Modal, Drawer } from 'antd';
 export function ModalShell({
   title,
   subtitle,
@@ -7,6 +7,8 @@ export function ModalShell({
   onClose,
   wide = false,
   className = '',
+  overlayClassName = '',
+  initialFocus,
 }: {
   title: string;
   subtitle?: string;
@@ -14,67 +16,54 @@ export function ModalShell({
   onClose: () => void;
   wide?: boolean;
   className?: string;
+  overlayClassName?: string;
+  initialFocus?: string;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-  useEffect(() => {
-    const prior = document.activeElement as HTMLElement;
-    const el = ref.current;
-    el?.querySelector<HTMLElement>('input,textarea,button')?.focus();
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopImmediatePropagation();
-        closeRef.current();
-      }
-      if (e.key === 'Tab' && el) {
-        const controls = Array.from(
-          el.querySelectorAll<HTMLElement>(
-            'button:not(:disabled),input:not(:disabled):not([hidden]),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]',
-          ),
-        );
-        const first = controls[0],
-          last = controls.at(-1);
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last?.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first?.focus();
-        }
-      }
-    };
-    document.addEventListener('keydown', handler, true);
-    return () => {
-      document.removeEventListener('keydown', handler, true);
-      prior?.focus();
-    };
-  }, []);
-  return (
-    <div
-      className="overlay"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        ref={ref}
-        className={`modal ${wide ? 'wide' : ''} ${className}`.trim()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-      >
-        <header className="modal-header">
-          <div>
-            <h2>{title}</h2>
-            {subtitle && <p>{subtitle}</p>}
-          </div>
-          <button className="icon-button" aria-label="关闭" onClick={onClose}>
-            <X size={20} />
-          </button>
-        </header>
-        {children}
-      </div>
+  const contentRef = useRef<HTMLDivElement>(null);
+  const focus = (open: boolean) => {
+    if (open && initialFocus) contentRef.current?.querySelector<HTMLElement>(initialFocus)?.focus();
+  };
+  const heading = (
+    <div className="av-dialog-title">
+      <h2>{title}</h2>
     </div>
+  );
+  const content = (
+    <div ref={contentRef} className={className}>
+      {subtitle && <p className="av-dialog-subtitle">{subtitle}</p>}
+      {children}
+    </div>
+  );
+  if (overlayClassName.includes('av-drawer-overlay'))
+    return (
+      <Drawer
+        open
+        title={heading}
+        onClose={onClose}
+        size={560}
+        rootClassName="av-ui-drawer"
+        afterOpenChange={focus}
+        keyboard
+        mask={{ closable: true }}
+        styles={{ body: { padding: 0 } }}
+      >
+        {content}
+      </Drawer>
+    );
+  return (
+    <Modal
+      open
+      centered
+      title={heading}
+      onCancel={onClose}
+      footer={null}
+      width={wide ? 820 : className.includes('template-modal') ? 920 : 600}
+      rootClassName="av-ui-modal"
+      afterOpenChange={focus}
+      focusable={{ trap: true, focusTriggerAfterClose: true }}
+      mask={{ closable: true }}
+    >
+      {content}
+    </Modal>
   );
 }

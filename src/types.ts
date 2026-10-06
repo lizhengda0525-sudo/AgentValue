@@ -78,7 +78,16 @@ export type BackupPreview = {
   createdAt: string;
   verified: boolean;
   bytes: number;
-  counts: { prompts: number; images: number; skills: number; generations: number };
+  counts: {
+    prompts: number;
+    images: number;
+    skills: number;
+    generations: number;
+    tasks?: number;
+    logs?: number;
+    goals?: number;
+    reviews?: number;
+  };
 };
 declare global {
   interface Window {
@@ -86,6 +95,7 @@ declare global {
       call: <T = unknown>(operation: string, input?: unknown) => Promise<T>;
       filePath: (file: File) => string;
       onUpdateStatus: (listener: (status: SoftwareStatus) => void) => () => void;
+      onQuickCapture?: (listener: () => void) => () => void;
     };
   }
 }

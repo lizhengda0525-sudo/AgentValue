@@ -1,3 +1,15 @@
+import {
+  Drawer,
+  Image,
+  Rate,
+  Upload as AntUpload,
+  Segmented,
+  Spin,
+  Alert,
+  Typography,
+  App as AntApp,
+} from 'antd';
+import { Button, Input, Textarea, Disclosure, Feedback, RatingField } from './ui';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   Archive,
@@ -34,11 +46,15 @@ import {
   X,
 } from 'lucide-react';
 import { ModalShell } from './ModalShell';
+import { ChoiceSelect } from './ChoiceSelect';
+import brandIcon from './assets/agentvalue-icon.png';
+import { libraryCall, assetFilePath, assetFileName } from './library-client';
 import { TemplateForm, RestoreForm, ImageTools } from './AssetTools';
 import { templateVariables, resolveTemplate } from './template';
 import type { BackupPreview, Media, Prompt, Scan, Skill, SoftwareStatus, State } from './types';
 
-type Page = 'home' | 'skills' | 'text' | 'image' | 'settings';
+export type LibraryPage = 'home' | 'skills' | 'text' | 'image' | 'settings';
+type Page = LibraryPage;
 type Modal =
   | { type: 'prompt'; kind: 'text' | 'image'; record?: Prompt }
   | { type: 'generation'; record: Prompt }
@@ -47,7 +63,8 @@ type Modal =
   | { type: 'import' }
   | { type: 'skill'; record: Skill }
   | null;
-const call = <T,>(operation: string, input?: unknown) => window.vault.call<T>(operation, input);
+const call = libraryCall;
+const miSansLicenseUrl = new URL('./assets/fonts/MiSans-License.pdf', import.meta.url).href;
 const date = (s: string) =>
   new Intl.DateTimeFormat('zh-CN', { month: 'short', day: 'numeric' }).format(new Date(s));
 const splitTags = (s: string) =>
@@ -61,24 +78,13 @@ const cover = (p: Prompt) =>
   p.images.find((i) => i.role === 'reference');
 const titles: Record<Page, string> = {
   home: '收藏概览',
-  skills: 'Skills',
-  text: '文本 Prompt',
-  image: '图片 Prompt',
+  skills: 'Skill 管理',
+  text: 'Prompt 管理',
+  image: '图片提示词',
   settings: '设置',
 };
 function Stars({ rating }: { rating: number }) {
-  return (
-    <span className="stars" aria-label={`${rating} 星`}>
-      {Array.from({ length: 5 }, (_, i) => (
-        <Star
-          key={i}
-          size={12}
-          fill={i < rating ? 'currentColor' : 'none'}
-          className={i < rating ? '' : 'muted-star'}
-        />
-      ))}
-    </span>
-  );
+  return <Rate disabled value={rating} className="stars" aria-label={`${rating} 星`} />;
 }
 function Tags({ items }: { items: string[] }) {
   return (
@@ -96,83 +102,77 @@ function FileDrop({
 }: {
   label: string;
   files: string[];
-  setFiles: (v: string[]) => void;
+  setFiles: (files: string[]) => void;
 }) {
-  const input = useRef<HTMLInputElement>(null);
-  const [hover, setHover] = useState(false);
   const [error, setError] = useState('');
-  const add = (paths: string[]) => {
-    const combined = [...new Set([...files, ...paths])];
-    setError(
-      combined.length > 30
-        ? `最多保存 30 张图片，另有 ${combined.length - 30} 张未加入。请分批添加。`
-        : '',
-    );
-    setFiles(combined.slice(0, 30));
-  };
+  const [preview, setPreview] = useState<string | null>(null);
+  const previewUrl = (path: string) =>
+    /^(blob:|data:|file:|https?:)/.test(path)
+      ? path
+      : `file:///${path
+          .replace(/\\/g, '/')
+          .split('/')
+          .map((part, index) => (index === 0 ? part : encodeURIComponent(part)))
+          .join('/')}`;
   return (
     <div className="upload-group">
       <label>
-        {label} <span className="subtle">· 可多选</span>
+        {label}
+        <span className="subtle"> · 可多选</span>
       </label>
-      <div
-        className={`dropzone ${hover ? 'dragging' : ''}`}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setHover(true);
-        }}
-        onDragLeave={() => setHover(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setHover(false);
-          try {
-            add(Array.from(e.dataTransfer.files).map((f) => window.vault.filePath(f)));
-          } catch {
-            setError('无法读取拖入文件，请点击选择图片');
+      <AntUpload.Dragger
+        aria-label={label}
+        multiple
+        accept=".png,.jpg,.jpeg,.webp,.gif"
+        listType="picture"
+        fileList={files.map((path) => ({
+          uid: path,
+          name: assetFileName(path),
+          url: previewUrl(path),
+          status: 'done' as const,
+        }))}
+        beforeUpload={(file, batch) => {
+          if (file === batch[0]) {
+            const accepted = batch.filter(
+              (item) => /\.(png|jpe?g|webp|gif)$/i.test(item.name) && item.size <= 30 * 1024 * 1024,
+            );
+            const combined = [...new Set([...files, ...accepted.map(assetFilePath)])];
+            setError(
+              accepted.length !== batch.length
+                ? '仅支持 PNG / JPG / WebP / GIF，每张最多 30 MB。'
+                : combined.length > 30
+                  ? '最多保存 30 张图片，请分批添加。'
+                  : '',
+            );
+            setFiles(combined.slice(0, 30));
           }
+          return false;
         }}
+        onRemove={(file) => {
+          setFiles(files.filter((path) => path !== file.uid));
+          return false;
+        }}
+        onPreview={(file) => setPreview(file.url ?? null)}
       >
-        <Upload size={22} />
-        <button type="button" className="link" onClick={() => input.current?.click()}>
-          点击选择图片
-        </button>
-        <span>或拖放到这里</span>
-        <small>PNG / JPG / WebP / GIF，每张最多 30 MB</small>
-        <input
-          ref={input}
-          type="file"
-          hidden
-          multiple
-          accept=".png,.jpg,.jpeg,.webp,.gif"
-          aria-label={label}
-          onChange={(e) => {
-            try {
-              add(Array.from(e.target.files || []).map((f) => window.vault.filePath(f)));
-            } catch {
-              setError('无法读取文件');
-            }
-            e.target.value = '';
+        <p className="ant-upload-drag-icon">
+          <Upload size={24} />
+        </p>
+        <p className="ant-upload-text">点击选择图片，或拖放到这里</p>
+        <p className="ant-upload-hint">PNG / JPG / WebP / GIF，每张最多 30 MB</p>
+      </AntUpload.Dragger>
+      {preview && (
+        <Image
+          style={{ display: 'none' }}
+          src={preview}
+          preview={{
+            open: true,
+            onOpenChange: (open) => {
+              if (!open) setPreview(null);
+            },
           }}
         />
-      </div>
-      {error && <p className="form-error">{error}</p>}
-      {files.length > 0 && (
-        <div className="file-pills">
-          {files.map((f) => (
-            <span key={f}>
-              <ImageIcon size={13} />
-              {f.split(/[/\\]/).pop()}
-              <button
-                type="button"
-                aria-label={`移除 ${f.split(/[/\\]/).pop()}`}
-                onClick={() => setFiles(files.filter((p) => p !== f))}
-              >
-                <X size={12} />
-              </button>
-            </span>
-          ))}
-        </div>
       )}
+      {error && <Alert type="error" title={error} showIcon />}
     </div>
   );
 }
@@ -189,37 +189,30 @@ function GenerationFields({
       <div className="form-row three">
         <label>
           生成模型
-          <input name="model" placeholder="例如 GPT Image" maxLength={120} />
+          <Input name="model" placeholder="例如 GPT Image" maxLength={120} />
         </label>
         <label>
           画面比例
-          <input name="ratio" placeholder="例如 16:9" maxLength={40} />
+          <Input name="ratio" placeholder="例如 16:9" maxLength={40} />
         </label>
         <label>
           图片尺寸
-          <input name="size" placeholder="例如 1536 × 1024" maxLength={80} />
+          <Input name="size" placeholder="例如 1536 × 1024" maxLength={80} />
         </label>
       </div>
       <div className="form-row">
         <label>
           效果评分
-          <select name="rating" defaultValue="0">
-            <option value="0">暂不评分</option>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <option value={n} key={n}>
-                {'★'.repeat(n)} · {n} 星
-              </option>
-            ))}
-          </select>
+          <RatingField />
         </label>
         <label>
           生成参数
-          <input name="parameters" placeholder="Seed、风格、负面提示词…" maxLength={10000} />
+          <Input name="parameters" placeholder="Seed、风格、负面提示词…" maxLength={10000} />
         </label>
       </div>
       <label>
         实验备注
-        <textarea
+        <Textarea
           name="generationNotes"
           rows={2}
           placeholder="记录这次效果，以及下次想调整的地方"
@@ -296,7 +289,7 @@ function PromptForm({
       subtitle={
         generationOnly
           ? '保存这次使用的正文、参数和效果，方便以后复现。'
-          : '把值得复用的灵感，放进自己的收藏库。'
+          : '保存正文、分类和标签；图片与效果记录可稍后补充。'
       }
       onClose={onClose}
       wide={isImage}
@@ -307,7 +300,7 @@ function PromptForm({
             <>
               <label>
                 标题 <b>*</b>
-                <input
+                <Input
                   name="title"
                   defaultValue={record?.title}
                   placeholder={isImage ? '给这份视觉灵感起个名字' : '例如：让代码审查更有条理'}
@@ -317,7 +310,7 @@ function PromptForm({
               </label>
               <label>
                 Prompt 正文 <b>*</b>
-                <textarea
+                <Textarea
                   name="content"
                   defaultValue={record?.content}
                   placeholder={
@@ -337,7 +330,7 @@ function PromptForm({
               <div className="form-row">
                 <label>
                   分类
-                  <input
+                  <Input
                     name="category"
                     defaultValue={record?.category}
                     placeholder="例如 写作 / 开发 / 摄影"
@@ -346,7 +339,7 @@ function PromptForm({
                 </label>
                 <label>
                   标签
-                  <input
+                  <Input
                     name="tags"
                     defaultValue={record?.tags.join('，')}
                     placeholder="用逗号分隔，例如 水彩，风景"
@@ -355,7 +348,7 @@ function PromptForm({
               </div>
               <label>
                 备注
-                <textarea
+                <Textarea
                   name="notes"
                   rows={2}
                   defaultValue={record?.notes}
@@ -378,7 +371,7 @@ function PromptForm({
             <>
               <label>
                 本次使用的 Prompt
-                <textarea
+                <Textarea
                   name="snapshot"
                   defaultValue={record?.content}
                   rows={5}
@@ -397,15 +390,15 @@ function PromptForm({
         </div>
         <footer className="modal-footer">
           <span>
-            <HardDrive size={14} /> 仅保存在本机
+            <HardDrive size={14} /> {'仅保存在本机'}
           </span>
-          <button type="button" className="button secondary" onClick={onClose}>
+          <Button type="button" className="button secondary" onClick={onClose}>
             取消
-          </button>
-          <button className="button primary" disabled={busy}>
+          </Button>
+          <Button type="submit" className="button primary" disabled={busy}>
             {busy ? <LoaderCircle className="spin" size={16} /> : <Check size={16} />}保存
             {generationOnly ? '实验' : '收藏'}
-          </button>
+          </Button>
         </footer>
       </form>
     </ModalShell>
@@ -438,32 +431,23 @@ function ImportForm({
       onClose={onClose}
     >
       <div className="import-body">
-        <div className="segmented">
-          <button
-            className={mode === 'local' ? 'active' : ''}
-            onClick={() => {
-              setMode('local');
-              setScan(null);
-            }}
-          >
-            <FolderOpen size={16} />
-            本地文件夹
-          </button>
-          <button
-            className={mode === 'github' ? 'active' : ''}
-            onClick={() => {
-              setMode('github');
-              setScan(null);
-            }}
-          >
-            <Github size={16} />
-            GitHub 仓库
-          </button>
-        </div>
+        <Segmented
+          block
+          aria-label="Skill 导入来源"
+          value={mode}
+          onChange={(value) => {
+            setMode(value as 'local' | 'github');
+            setScan(null);
+          }}
+          options={[
+            { value: 'local', label: '本地文件夹', icon: <FolderOpen size={16} /> },
+            { value: 'github', label: 'GitHub 仓库', icon: <Github size={16} /> },
+          ]}
+        />
         {mode === 'github' ? (
           <label>
             公开仓库地址
-            <input
+            <Input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://github.com/owner/repo"
@@ -483,10 +467,10 @@ function ImportForm({
             </p>
           </div>
         )}
-        <button className="button secondary full" disabled={busy} onClick={doScan}>
+        <Button className="button secondary full" disabled={busy} onClick={doScan}>
           {busy ? <LoaderCircle className="spin" size={16} /> : <Search size={16} />}{' '}
           {scan ? '重新扫描' : mode === 'local' ? '选择文件夹并扫描' : '扫描仓库'}
-        </button>
+        </Button>
         {scan && (
           <div className="scan-list">
             <p>
@@ -494,7 +478,7 @@ function ImportForm({
             </p>
             {scan.candidates.map((c) => (
               <label className="scan-item" key={c.key}>
-                <input
+                <Input
                   type="checkbox"
                   checked={selected.includes(c.key)}
                   onChange={(e) =>
@@ -518,7 +502,7 @@ function ImportForm({
         <span>
           <ShieldCheck size={14} /> 只读取文件，不执行 Skill
         </span>
-        <button
+        <Button
           className="button primary"
           disabled={busy || !scan || !selected.length}
           onClick={async () => {
@@ -528,7 +512,7 @@ function ImportForm({
         >
           <ArrowDownToLine size={16} />
           导入收藏库
-        </button>
+        </Button>
       </footer>
     </ModalShell>
   );
@@ -562,11 +546,11 @@ function SkillForm({
         <div className="form-scroll">
           <label>
             名称
-            <input name="name" defaultValue={record.name} required maxLength={120} />
+            <Input name="name" defaultValue={record.name} required maxLength={120} />
           </label>
           <label>
             描述
-            <textarea
+            <Textarea
               name="description"
               defaultValue={record.description}
               rows={4}
@@ -575,7 +559,7 @@ function SkillForm({
           </label>
           <label>
             标签
-            <input
+            <Input
               name="tags"
               defaultValue={record.tags.join('，')}
               placeholder="多个标签用逗号分隔"
@@ -583,25 +567,38 @@ function SkillForm({
           </label>
         </div>
         <footer className="modal-footer">
-          <button type="button" className="button secondary" onClick={onClose}>
+          <Button type="button" className="button secondary" onClick={onClose}>
             取消
-          </button>
-          <button className="button primary" disabled={busy}>
+          </Button>
+          <Button type="submit" className="button primary" disabled={busy}>
             保存信息
-          </button>
+          </Button>
         </footer>
       </form>
     </ModalShell>
   );
 }
 
-export default function App() {
+export default function App({
+  onOpenWorkbench,
+  embedded = false,
+  libraryPage,
+  onNavigate,
+  selectedAsset,
+}: {
+  onOpenWorkbench?: () => void;
+  embedded?: boolean;
+  libraryPage?: LibraryPage;
+  onNavigate?: (page: LibraryPage) => void;
+  selectedAsset?: { type: 'prompt' | 'skill'; id: string } | null;
+}) {
+  const { modal: confirmation } = AntApp.useApp();
   const [state, setState] = useState<State>({ prompts: [], skills: [], root: '', schema: 1 });
   const [software, setSoftware] = useState<SoftwareStatus>({ phase: 'idle' });
   const announcedVersion = useRef('');
   const [loading, setLoading] = useState(true),
     [fatal, setFatal] = useState('');
-  const [page, setPage] = useState<Page>('home'),
+  const [page, setPage] = useState<Page>(libraryPage || 'home'),
     [query, setQuery] = useState(''),
     [favoriteOnly, setFavoriteOnly] = useState(false),
     [tag, setTag] = useState(''),
@@ -624,18 +621,13 @@ export default function App() {
     setState(await call<State>('state'));
   };
   useEffect(() => {
-    if (!window.vault) {
-      setFatal('请通过 AgentValue 桌面启动器打开应用。');
-      setLoading(false);
-      return;
-    }
     refresh()
       .catch((e) => setFatal(e.message))
       .finally(() => setLoading(false));
     call<SoftwareStatus>('softwareStatus')
       .then(setSoftware)
       .catch(() => {});
-    return window.vault.onUpdateStatus((status) => {
+    return window.vault?.onUpdateStatus((status) => {
       setSoftware((previous) => ({ ...previous, ...status }));
       if (
         status.phase === 'available' &&
@@ -648,14 +640,30 @@ export default function App() {
     });
   }, []);
   useEffect(() => {
+    if (!libraryPage) return;
+    setPage(libraryPage);
+    setQuery('');
+    setTag('');
+    setFavoriteOnly(false);
+    setDetail(null);
+    setModal(null);
+    setLightbox(null);
+  }, [libraryPage]);
+  useEffect(() => {
+    if (selectedAsset) setDetail(selectedAsset);
+  }, [selectedAsset]);
+  useEffect(() => {
     const fn = (e: KeyboardEvent) => {
+      if (
+        document.querySelector(
+          '.ant-select-dropdown:not(.ant-select-dropdown-hidden), .ant-picker-dropdown:not(.ant-picker-dropdown-hidden)',
+        )
+      )
+        return;
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        if (modal) return;
         e.preventDefault();
         searchRef.current?.focus();
-      }
-      if (e.key === 'Escape') {
-        if (lightbox) setLightbox(null);
-        else if (!modal) setDetail(null);
       }
     };
     window.addEventListener('keydown', fn);
@@ -666,6 +674,20 @@ export default function App() {
     busyRef.current = true;
     setBusy(true);
     try {
+      if (operation === 'delete' && !window.vault) {
+        const approved = await new Promise<boolean>((resolve) =>
+          confirmation.confirm({
+            title: '删除收藏',
+            content: '删除这条本地收藏？',
+            okText: '删除',
+            cancelText: '取消',
+            okButtonProps: { danger: true },
+            onOk: () => resolve(true),
+            onCancel: () => resolve(false),
+          }),
+        );
+        if (!approved) return undefined;
+      }
       const result = await call<T>(operation, input);
       await refresh();
       return result;
@@ -722,6 +744,7 @@ export default function App() {
     }
   };
   const go = (next: Page) => {
+    onNavigate?.(next);
     setPage(next);
     setQuery('');
     setTag('');
@@ -791,15 +814,15 @@ export default function App() {
         className={`asset-card ${p.kind === 'image' ? 'image-card' : 'text-card'}`}
         key={p.id}
       >
-        <button
+        <Button
           className={`favorite-button ${p.favorite ? 'is-favorite' : ''}`}
           title={p.favorite ? '取消收藏' : '标记收藏'}
           aria-label={`${p.favorite ? '取消收藏' : '收藏'} ${p.title}`}
           onClick={() => toggle('prompt', p.id)}
         >
           <Star size={17} fill={p.favorite ? 'currentColor' : 'none'} />
-        </button>
-        <button className="card-main" onClick={() => setDetail({ type: 'prompt', id: p.id })}>
+        </Button>
+        <Button className="card-main" onClick={() => setDetail({ type: 'prompt', id: p.id })}>
           {p.kind === 'image' ? (
             <div className="card-image">
               {img ? (
@@ -807,7 +830,7 @@ export default function App() {
               ) : (
                 <div className="image-placeholder">
                   <ImageIcon size={34} />
-                  <span>等待一张好作品</span>
+                  <span>暂无预览图</span>
                 </div>
               )}
               <span className="image-count">
@@ -835,31 +858,31 @@ export default function App() {
             )}
             <Tags items={p.tags} />
           </div>
-        </button>
+        </Button>
         <div className="card-footer">
           <span>{date(p.updated_at)}更新</span>
-          <button
+          <Button
             onClick={() => copy(p.content, p.id)}
             className="copy-button"
             aria-label={`复制 ${p.title}`}
           >
             <Copy size={14} />
             复制 Prompt
-          </button>
+          </Button>
         </div>
       </article>
     );
   };
   const skillCard = (s: Skill) => (
     <article className="asset-card skill-card" key={s.id}>
-      <button
+      <Button
         className={`favorite-button ${s.favorite ? 'is-favorite' : ''}`}
         aria-label={`${s.favorite ? '取消收藏' : '收藏'} ${s.name}`}
         onClick={() => toggle('skill', s.id)}
       >
         <Star size={17} fill={s.favorite ? 'currentColor' : 'none'} />
-      </button>
-      <button className="card-main" onClick={() => setDetail({ type: 'skill', id: s.id })}>
+      </Button>
+      <Button className="card-main" onClick={() => setDetail({ type: 'skill', id: s.id })}>
         <div className="card-top">
           <span className="asset-icon mint">
             <Code2 size={23} />
@@ -879,16 +902,16 @@ export default function App() {
           <p className="card-excerpt">{s.description || '打开查看 SKILL.md 和文件内容'}</p>
           <Tags items={s.tags} />
         </div>
-      </button>
+      </Button>
       <div className="card-footer">
         <span>
           {s.files.length} 个文件
           {s.latest_commit !== s.commit_hash && <i className="update-dot" title="有新版本" />}
         </span>
-        <button className="copy-button" onClick={() => setDetail({ type: 'skill', id: s.id })}>
+        <Button className="copy-button" onClick={() => setDetail({ type: 'skill', id: s.id })}>
           查看 Skill
           <ArrowUpRight size={14} />
-        </button>
+        </Button>
       </div>
     </article>
   );
@@ -909,10 +932,10 @@ export default function App() {
         {filtered
           ? '还没有找到匹配的收藏'
           : kind === 'skills'
-            ? '让好用的 Skill 随时就位'
+            ? '暂无 Skill'
             : kind === 'image'
-              ? '留住每一次满意的生成'
-              : '下一次好用的 Prompt，从这里开始'}
+              ? '暂无图片提示词'
+              : '暂无 Prompt'}
       </h3>
       <p>
         {filtered
@@ -920,10 +943,10 @@ export default function App() {
           : kind === 'skills'
             ? '导入本地或 GitHub 的 Skill，整理后复制到项目。'
             : kind === 'image'
-              ? '把 Prompt、参考图和效果放在一起，让灵感可以重现。'
+              ? '保存 Prompt、参考图、效果图和实验参数。'
               : '收藏常用指令，分类、打标签，随时一键复制。'}
       </p>
-      <button
+      <Button
         className="button primary"
         onClick={() =>
           filtered
@@ -941,7 +964,7 @@ export default function App() {
             : kind === 'image'
               ? '收藏第一个图片 Prompt'
               : '收藏第一个 Prompt'}
-      </button>
+      </Button>
     </div>
   );
   if (fatal)
@@ -950,73 +973,75 @@ export default function App() {
         <Archive size={38} />
         <h1>AgentValue</h1>
         <p>{fatal}</p>
-        <button onClick={() => location.reload()}>重试</button>
+        <Button onClick={() => location.reload()}>重试</Button>
       </div>
     );
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <button className="brand" onClick={() => go('home')}>
-          <span className="brand-mark">
-            <Layers3 size={24} />
-          </span>
-          <span>
-            AgentValue<small>你的 AI 资产收藏库</small>
-          </span>
-        </button>
-        <div className="workspace">
-          <span className="workspace-avatar">A</span>
-          <span>
-            个人空间<small>Personal library</small>
-          </span>
-          <span className="local-dot" />
-        </div>
-        <nav aria-label="主导航">
-          <button className={page === 'home' ? 'nav active' : 'nav'} onClick={() => go('home')}>
-            <LayoutDashboard size={18} />
-            首页
-          </button>
-          <div className="nav-label">
-            收藏库 <span>LIBRARY</span>
+    <div className={`app-shell ${embedded ? 'av-library-embedded' : ''}`}>
+      {!embedded && (
+        <aside className="sidebar">
+          <Button className="brand" onClick={() => go('home')}>
+            <span className="brand-mark">
+              <img src={brandIcon} alt="" />
+            </span>
+            <span>AgentValue</span>
+          </Button>
+          <nav aria-label="主导航">
+            {onOpenWorkbench && (
+              <Button className="nav" onClick={onOpenWorkbench}>
+                <Clock3 size={18} />
+                工作台<span className="count">新</span>
+              </Button>
+            )}
+            <Button className={page === 'home' ? 'nav active' : 'nav'} onClick={() => go('home')}>
+              <LayoutDashboard size={18} />
+              首页
+            </Button>
+            <div className="nav-label">
+              收藏库 <span>LIBRARY</span>
+            </div>
+            <Button
+              className={page === 'skills' ? 'nav active' : 'nav'}
+              onClick={() => go('skills')}
+            >
+              <Code2 size={19} />
+              Skills<span className="count">{state.skills.length}</span>
+            </Button>
+            <Button className={page === 'text' ? 'nav active' : 'nav'} onClick={() => go('text')}>
+              <FileText size={18} />
+              文本 Prompt<span className="count">{textCount}</span>
+            </Button>
+            <Button className={page === 'image' ? 'nav active' : 'nav'} onClick={() => go('image')}>
+              <ImageIcon size={18} />
+              图片 Prompt<span className="count">{imageCount}</span>
+            </Button>
+          </nav>
+          <div className="sidebar-bottom">
+            <div className="local-note">
+              <ShieldCheck size={17} />
+              <strong>灵感归你，数据也归你。</strong>
+              <p>所有收藏，安心留在本机。</p>
+            </div>
+            <Button
+              className={page === 'settings' ? 'nav active' : 'nav'}
+              onClick={() => go('settings')}
+            >
+              <Settings2 size={18} />
+              设置<span className="version">v{software.currentVersion || '…'}</span>
+            </Button>
           </div>
-          <button className={page === 'skills' ? 'nav active' : 'nav'} onClick={() => go('skills')}>
-            <Code2 size={19} />
-            Skills<span className="count">{state.skills.length}</span>
-          </button>
-          <button className={page === 'text' ? 'nav active' : 'nav'} onClick={() => go('text')}>
-            <FileText size={18} />
-            文本 Prompt<span className="count">{textCount}</span>
-          </button>
-          <button className={page === 'image' ? 'nav active' : 'nav'} onClick={() => go('image')}>
-            <ImageIcon size={18} />
-            图片 Prompt<span className="count">{imageCount}</span>
-          </button>
-        </nav>
-        <div className="sidebar-bottom">
-          <div className="local-note">
-            <ShieldCheck size={17} />
-            <strong>灵感归你，数据也归你。</strong>
-            <p>所有收藏，安心留在本机。</p>
-          </div>
-          <button
-            className={page === 'settings' ? 'nav active' : 'nav'}
-            onClick={() => go('settings')}
-          >
-            <Settings2 size={18} />
-            设置<span className="version">v{software.currentVersion || '…'}</span>
-          </button>
-        </div>
-      </aside>
+        </aside>
+      )}
       <div className="main-shell">
         <header className="topbar">
           <div className="breadcrumb">
-            个人空间
+            我的资产库
             <ChevronRight size={13} />
             <span>{q ? '搜索结果' : titles[page]}</span>
           </div>
           <div className="global-search">
             <Search size={16} />
-            <input
+            <Input
               ref={searchRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -1024,25 +1049,25 @@ export default function App() {
               aria-label="全局搜索"
             />
             {query ? (
-              <button className="icon-button" aria-label="清空搜索" onClick={() => setQuery('')}>
+              <Button className="icon-button" aria-label="清空搜索" onClick={() => setQuery('')}>
                 <X size={14} />
-              </button>
+              </Button>
             ) : (
               <kbd>Ctrl K</kbd>
             )}
           </div>
           <span className="offline-badge">
-            <span /> 本地模式
+            <span /> {'本地模式'}
           </span>
           {['available', 'downloading', 'ready'].includes(software.phase) && (
-            <button className="update-shortcut" onClick={() => go('settings')}>
+            <Button className="update-shortcut" onClick={() => go('settings')}>
               <RefreshCw size={14} />
               {software.phase === 'ready'
                 ? '更新已就绪'
                 : software.phase === 'downloading'
                   ? `下载中 ${software.percent || 0}%`
                   : `发现新版本 ${software.version}`}
-            </button>
+            </Button>
           )}
         </header>
         <main>
@@ -1055,15 +1080,6 @@ export default function App() {
             <>
               <div className="page-heading">
                 <div>
-                  <div className="eyebrow">
-                    {q
-                      ? 'SEARCH YOUR LIBRARY'
-                      : page === 'skills'
-                        ? 'REUSABLE CAPABILITIES'
-                        : page === 'image'
-                          ? 'A VISUAL COLLECTION'
-                          : 'WORDS THAT WORK'}
-                  </div>
                   <h1>
                     {q ? '搜索收藏' : titles[page]}
                     <span className="heading-count">
@@ -1078,13 +1094,13 @@ export default function App() {
                     {q
                       ? `在所有 Skill、Prompt 正文和标签中查找「${query}」`
                       : page === 'skills'
-                        ? '把常用能力整理好，下一次开工更从容。'
+                        ? '导入、编辑、收藏和导出 Skill。'
                         : page === 'image'
-                          ? '从一张好作品，找回创造它的灵感。'
-                          : '让好用的指令，不止用一次。'}
+                          ? '管理图片提示词、参考图和生成记录。'
+                          : '管理、搜索和复制常用文本指令。'}
                   </p>
                 </div>
-                <button
+                <Button
                   className="button primary"
                   onClick={() =>
                     page === 'skills'
@@ -1094,28 +1110,22 @@ export default function App() {
                 >
                   <Plus size={17} />
                   {page === 'skills' ? '导入 Skill' : '新增 Prompt'}
-                </button>
+                </Button>
               </div>
               <div className="toolbar">
-                <div className="filter-tabs">
-                  <button
-                    className={!favoriteOnly ? 'selected' : ''}
-                    onClick={() => setFavoriteOnly(false)}
-                  >
-                    全部收藏
-                  </button>
-                  <button
-                    className={favoriteOnly ? 'selected' : ''}
-                    onClick={() => setFavoriteOnly(true)}
-                  >
-                    <Star size={14} />
-                    仅看星标
-                  </button>
-                </div>
+                <Segmented
+                  aria-label="收藏范围"
+                  value={favoriteOnly ? 'favorite' : 'all'}
+                  onChange={(value) => setFavoriteOnly(value === 'favorite')}
+                  options={[
+                    { value: 'all', label: '全部收藏' },
+                    { value: 'favorite', label: '仅看星标', icon: <Star size={14} /> },
+                  ]}
+                />
                 <div className="toolbar-end">
                   <label className="select-inline">
                     <Tag size={14} />
-                    <select
+                    <ChoiceSelect
                       value={tag}
                       onChange={(e) => setTag(e.target.value)}
                       aria-label="标签筛选"
@@ -1124,11 +1134,11 @@ export default function App() {
                       {allTags.map((t) => (
                         <option key={t}>{t}</option>
                       ))}
-                    </select>
+                    </ChoiceSelect>
                   </label>
                   <label className="select-inline">
                     <SlidersHorizontal size={14} />
-                    <select
+                    <ChoiceSelect
                       value={sort}
                       onChange={(e) => setSort(e.target.value)}
                       aria-label="排序"
@@ -1136,24 +1146,31 @@ export default function App() {
                       <option value="newest">最近更新</option>
                       <option value="oldest">最早更新</option>
                       <option value="favorite">星标优先</option>
-                    </select>
+                    </ChoiceSelect>
                   </label>
-                  <div className="view-toggle">
-                    <button
-                      aria-label="卡片视图"
-                      className={layout === 'grid' ? 'selected' : ''}
-                      onClick={() => setLayout('grid')}
-                    >
-                      <Grid2X2 size={16} />
-                    </button>
-                    <button
-                      aria-label="列表视图"
-                      className={layout === 'list' ? 'selected' : ''}
-                      onClick={() => setLayout('list')}
-                    >
-                      <List size={16} />
-                    </button>
-                  </div>
+                  <Segmented
+                    aria-label="资产展示方式"
+                    value={layout}
+                    onChange={(value) => setLayout(value as 'grid' | 'list')}
+                    options={[
+                      {
+                        value: 'grid',
+                        label: (
+                          <span aria-label="卡片视图">
+                            <Grid2X2 size={16} />
+                          </span>
+                        ),
+                      },
+                      {
+                        value: 'list',
+                        label: (
+                          <span aria-label="列表视图">
+                            <List size={16} />
+                          </span>
+                        ),
+                      },
+                    ]}
+                  />
                 </div>
               </div>
               {q ? (
@@ -1194,11 +1211,8 @@ export default function App() {
             <>
               <div className="page-heading home-heading">
                 <div>
-                  <div className="eyebrow">A HOME FOR YOUR AI ASSETS</div>
-                  <h1>
-                    好灵感，值得被收藏<span className="heading-dot">.</span>
-                  </h1>
-                  <p>你的 Skill、Prompt 和视觉探索，都在这里。</p>
+                  <h1>资产概览</h1>
+                  <p>查看 Prompt、图片提示词和 Skill。</p>
                 </div>
                 <span className="today">
                   {new Intl.DateTimeFormat('zh-CN', {
@@ -1237,7 +1251,7 @@ export default function App() {
                     },
                   ] as const
                 ).map((s) => (
-                  <button className="stat-card" key={s.page} onClick={() => go(s.page)}>
+                  <Button className="stat-card" key={s.page} onClick={() => go(s.page)}>
                     <div>
                       <span className={`asset-icon ${s.color}`}>
                         <s.icon size={21} />
@@ -1247,7 +1261,7 @@ export default function App() {
                     </div>
                     <strong>{String(s.value).padStart(2, '0')}</strong>
                     <small>{s.desc}</small>
-                  </button>
+                  </Button>
                 ))}
               </div>
               <section className="hero">
@@ -1261,11 +1275,11 @@ export default function App() {
                     都有迹可循。
                   </h2>
                   <p>存下好用的 Prompt，也留住它带来的好作品。</p>
-                  <button className="button hero-button" onClick={() => newPrompt('image')}>
+                  <Button className="button hero-button" onClick={() => newPrompt('image')}>
                     <Plus size={17} />
                     收藏图片 Prompt
                     <ArrowRight size={16} />
-                  </button>
+                  </Button>
                 </div>
                 <div className="hero-art" aria-hidden="true">
                   <div className="orbit one" />
@@ -1312,10 +1326,10 @@ export default function App() {
                       <Clock3 size={17} />
                       最近使用
                     </h2>
-                    <button className="link muted" onClick={() => go('text')}>
+                    <Button className="link muted" onClick={() => go('text')}>
                       全部 Prompt
                       <ArrowRight size={14} />
-                    </button>
+                    </Button>
                   </div>
                   {state.prompts.some((p) => p.used_at) ? (
                     <div className="recent-list">
@@ -1328,7 +1342,7 @@ export default function App() {
                             <span className="asset-icon small">
                               <FileText size={17} />
                             </span>
-                            <button
+                            <Button
                               className="recent-name"
                               onClick={() => setDetail({ type: 'prompt', id: p.id })}
                             >
@@ -1336,26 +1350,26 @@ export default function App() {
                               <small>
                                 {p.category || '未分类'} · {date(p.used_at!)}
                               </small>
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               className="icon-button"
                               aria-label={`复制 ${p.title}`}
                               onClick={() => copy(p.content, p.id)}
                             >
                               <Copy size={15} />
-                            </button>
+                            </Button>
                           </div>
                         ))}
                     </div>
                   ) : (
                     <div className="small-empty">
                       <Copy size={23} />
-                      <strong>下一次，直接复制就好</strong>
+                      <strong>复制常用 Prompt</strong>
                       <p>使用过的 Prompt 会出现在这里。</p>
-                      <button className="link" onClick={() => newPrompt('text')}>
+                      <Button className="link" onClick={() => newPrompt('text')}>
                         添加文本 Prompt
                         <Plus size={14} />
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </section>
@@ -1365,10 +1379,10 @@ export default function App() {
                       <Code2 size={18} />
                       最近添加的 Skill
                     </h2>
-                    <button className="link muted" onClick={() => go('skills')}>
+                    <Button className="link muted" onClick={() => go('skills')}>
                       查看全部
                       <ArrowRight size={14} />
-                    </button>
+                    </Button>
                   </div>
                   {state.skills.length ? (
                     <div className="recent-list">
@@ -1377,7 +1391,7 @@ export default function App() {
                           <span className="asset-icon small mint">
                             <Code2 size={17} />
                           </span>
-                          <button
+                          <Button
                             className="recent-name"
                             onClick={() => setDetail({ type: 'skill', id: s.id })}
                           >
@@ -1385,7 +1399,7 @@ export default function App() {
                             <small>
                               {s.source === 'github' ? 'GitHub' : '本地'} · {s.files.length} 个文件
                             </small>
-                          </button>
+                          </Button>
                           <ChevronRight size={16} />
                         </div>
                       ))}
@@ -1395,10 +1409,10 @@ export default function App() {
                       <FolderOpen size={24} />
                       <strong>把你的常用能力装进来</strong>
                       <p>支持本地文件夹和 GitHub 仓库。</p>
-                      <button className="link" onClick={() => setModal({ type: 'import' })}>
+                      <Button className="link" onClick={() => setModal({ type: 'import' })}>
                         导入 Skill
                         <Plus size={14} />
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </section>
@@ -1409,10 +1423,10 @@ export default function App() {
                     <ImageIcon size={18} />
                     最近保存的视觉灵感
                   </h2>
-                  <button className="link muted" onClick={() => go('image')}>
+                  <Button className="link muted" onClick={() => go('image')}>
                     打开画廊
                     <ArrowRight size={14} />
-                  </button>
+                  </Button>
                 </div>
                 {imageCount ? (
                   <div className="asset-grid gallery">
@@ -1422,16 +1436,16 @@ export default function App() {
                       .map(promptCard)}
                   </div>
                 ) : (
-                  <button className="image-empty-strip" onClick={() => newPrompt('image')}>
+                  <Button className="image-empty-strip" onClick={() => newPrompt('image')}>
                     <span>
                       <ImageIcon size={23} />
                     </span>
                     <div>
-                      <strong>这里，将是你的灵感画廊</strong>
-                      <p>收藏第一张效果图，连同创造它的 Prompt。</p>
+                      <strong>暂无效果图</strong>
+                      <p>添加图片提示词与对应效果图。</p>
                     </div>
                     <ArrowUpRight size={20} />
-                  </button>
+                  </Button>
                 )}
               </section>
               <footer className="page-footer">
@@ -1439,16 +1453,17 @@ export default function App() {
                   <HardDrive size={13} />
                   本地保存 · 随时复用
                 </span>
-                <span>Made for your next idea.</span>
               </footer>
             </>
           ) : (
             <>
               <div className="page-heading">
                 <div>
-                  <div className="eyebrow">YOUR LIBRARY, YOUR CONTROL</div>
                   <h1>设置</h1>
-                  <p>收藏属于你，文件也始终在你手里。</p>
+                  <p>管理本地数据、备份与软件更新。</p>
+                  {window.vault && (
+                    <p>Ctrl+Shift+Space 快速录入。关闭窗口后驻留托盘；右键托盘图标可退出软件。</p>
+                  )}
                 </div>
               </div>
               <div className="settings-card">
@@ -1463,13 +1478,19 @@ export default function App() {
                 <label>
                   数据目录<div className="path-display">{state.root}</div>
                 </label>
-                <button className="button secondary" onClick={() => perform('openData')}>
-                  <FolderOpen size={16} />
-                  打开数据目录
-                </button>
-                <button
+                <Button
                   className="button secondary"
-                  disabled={busy}
+                  onClick={async () => {
+                    const result = await perform<string>('openData');
+                    if (result && !window.vault) notify('数据目录路径已复制');
+                  }}
+                >
+                  <FolderOpen size={16} />
+                  {window.vault ? '打开数据目录' : '复制数据目录路径'}
+                </Button>
+                <Button
+                  className="button secondary"
+                  disabled={busy || !window.vault}
                   onClick={async () => {
                     const target = await perform<string>('chooseDataLocation');
                     if (target) notify('数据已迁移，正在重新打开软件');
@@ -1477,7 +1498,7 @@ export default function App() {
                 >
                   <HardDrive size={16} />
                   更改数据位置
-                </button>
+                </Button>
                 <small>请选择空文件夹。迁移成功前会保留原数据，软件随后重新启动。</small>
               </div>
               <div className="settings-card">
@@ -1496,30 +1517,35 @@ export default function App() {
                 {software.phase === 'ready' && <p>版本 {software.version} 已下载，重启后安装。</p>}
                 {software.phase === 'error' && <p role="alert">{software.message}</p>}
                 {software.phase === 'unavailable' && <p>{software.message}</p>}
-                <button
+                <Button
                   className="button secondary"
-                  disabled={busy || software.phase === 'downloading' || software.phase === 'ready'}
+                  disabled={
+                    busy ||
+                    software.phase === 'unavailable' ||
+                    software.phase === 'downloading' ||
+                    software.phase === 'ready'
+                  }
                   onClick={() => perform('checkSoftwareUpdate')}
                 >
                   检查软件更新
-                </button>
+                </Button>
                 {software.phase === 'available' && (
-                  <button
+                  <Button
                     className="button primary"
                     disabled={busy}
                     onClick={() => perform('downloadSoftwareUpdate')}
                   >
                     下载更新
-                  </button>
+                  </Button>
                 )}
                 {software.phase === 'ready' && (
-                  <button
+                  <Button
                     className="button primary"
                     disabled={busy}
                     onClick={() => perform('installSoftwareUpdate')}
                   >
                     重启并安装
-                  </button>
+                  </Button>
                 )}
               </div>
               {software.canUninstall && (
@@ -1530,7 +1556,7 @@ export default function App() {
                   </h2>
                   <p>安装位置：{software.installDirectory}</p>
                   <p>卸载程序只会移除软件；个人收藏仍保留在上方显示的数据目录。</p>
-                  <button
+                  <Button
                     className="button secondary"
                     disabled={busy}
                     onClick={async () => {
@@ -1548,16 +1574,16 @@ export default function App() {
                     }}
                   >
                     卸载 AgentValue
-                  </button>
+                  </Button>
                 </div>
               )}
               <div className="settings-card">
                 <h2>
                   <Archive size={19} />
-                  备份收藏库
+                  数据备份
                 </h2>
-                <p>导出数据库、图片、Skill 和一份可阅读的 JSON 清单。备份包含全部本地资产。</p>
-                <button
+                <p>备份包含事项、日程、小计、目标、回顾，以及全部 Prompt、图片和 Skill。</p>
+                <Button
                   className="button primary"
                   disabled={busy}
                   onClick={async () => {
@@ -1571,8 +1597,8 @@ export default function App() {
                     <ArrowDownToLine size={16} />
                   )}
                   导出完整备份
-                </button>
-                <button
+                </Button>
+                <Button
                   className="button secondary"
                   disabled={busy}
                   onClick={async () => {
@@ -1581,18 +1607,18 @@ export default function App() {
                   }}
                 >
                   选择备份并恢复
-                </button>
+                </Button>
                 <small>
-                  恢复前会校验文件并自动备份当前库。支持旧版备份；恢复整个库会替换当前收藏。
+                  恢复前会校验文件并自动备份当前库。支持旧版备份；恢复会替换全部助手记录和资产。
                 </small>
               </div>
               <div className="settings-card">
                 <h2>
                   <Sparkles size={19} />
-                  从几个例子开始
+                  示例数据
                 </h2>
                 <p>添加两条文本示例，体验标签、搜索和一键复制。示例会明确标注，可以随时删除。</p>
-                <button
+                <Button
                   className="button secondary"
                   disabled={busy || state.prompts.some((p) => p.tags.includes('示例'))}
                   onClick={async () => {
@@ -1620,24 +1646,32 @@ export default function App() {
                 >
                   <Plus size={16} />
                   添加文本示例
-                </button>
+                </Button>
               </div>
               <p className="settings-version">
-                AgentValue {software.currentVersion || '…'} · Schema {state.schema} ·
-                个人本地收藏工具
+                界面字体：MiSans · 字体由小米提供 ·{' '}
+                <Typography.Link href={miSansLicenseUrl} target="_blank" rel="noreferrer">
+                  字体许可
+                </Typography.Link>
+              </p>
+              <p className="settings-version">
+                AgentValue {software.currentVersion || '…'} · Schema {state.schema}
               </p>
             </>
           )}
         </main>
       </div>
       {detail && (selectedPrompt || selectedSkill) && (
-        <div
-          className="drawer-overlay"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setDetail(null);
-          }}
+        <Drawer
+          open
+          title="收藏详情"
+          size={720}
+          rootClassName="av-ui-drawer av-asset-drawer"
+          onClose={() => setDetail(null)}
+          keyboard={!modal && !lightbox}
+          styles={{ body: { padding: 0 } }}
         >
-          <aside className="detail-drawer" role="dialog" aria-modal="true" aria-label="收藏详情">
+          <div className="detail-drawer-content">
             <header className="drawer-header">
               <span>
                 {selectedSkill ? (
@@ -1657,22 +1691,19 @@ export default function App() {
                   </>
                 )}
               </span>
-              <button className="icon-button" aria-label="关闭详情" onClick={() => setDetail(null)}>
-                <X size={21} />
-              </button>
             </header>
             <div className="drawer-content">
               {selectedPrompt ? (
                 <>
                   <div className="detail-title">
                     <h1>{selectedPrompt.title}</h1>
-                    <button
+                    <Button
                       className={`icon-button ${selectedPrompt.favorite ? 'is-favorite' : ''}`}
                       aria-label="切换收藏"
                       onClick={() => toggle('prompt', selectedPrompt.id)}
                     >
                       <Star size={22} fill={selectedPrompt.favorite ? 'currentColor' : 'none'} />
-                    </button>
+                    </Button>
                   </div>
                   <div className="detail-meta">
                     {selectedPrompt.category || '未分类'}
@@ -1681,14 +1712,14 @@ export default function App() {
                   </div>
                   <Tags items={selectedPrompt.tags} />
                   <div className="detail-actions">
-                    <button
+                    <Button
                       className="button primary"
                       onClick={() => copy(selectedPrompt.content, selectedPrompt.id)}
                     >
                       <Copy size={16} />
                       复制 Prompt
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       className="button secondary"
                       onClick={() =>
                         setModal({
@@ -1699,15 +1730,15 @@ export default function App() {
                       }
                     >
                       编辑
-                    </button>
+                    </Button>
                     {selectedPrompt.kind === 'image' && (
-                      <button
+                      <Button
                         className="button secondary"
                         onClick={() => setModal({ type: 'generation', record: selectedPrompt })}
                       >
                         <Plus size={15} />
                         记录新实验
-                      </button>
+                      </Button>
                     )}
                   </div>
                   <section className="detail-section">
@@ -1730,7 +1761,7 @@ export default function App() {
                               {selectedPrompt.images.filter((i) => i.role === 'reference').length}
                             </span>
                           </h3>
-                          <button
+                          <Button
                             className="link"
                             onClick={() =>
                               setModal({ type: 'prompt', kind: 'image', record: selectedPrompt })
@@ -1738,7 +1769,7 @@ export default function App() {
                           >
                             <Plus size={14} />
                             添加
-                          </button>
+                          </Button>
                         </div>
                         {selectedPrompt.images.some((i) => i.role === 'reference') ? (
                           <div className="media-grid">
@@ -1796,17 +1827,17 @@ export default function App() {
                                 <p className="generation-parameters">参数：{g.parameters}</p>
                               )}
                               {g.notes && <p className="preserve">{g.notes}</p>}
-                              <details>
+                              <Disclosure>
                                 <summary>查看本次 Prompt 快照</summary>
                                 <pre className="prompt-code">{g.snapshot}</pre>
-                                <button
+                                <Button
                                   className="link"
                                   onClick={() => copy(g.snapshot, selectedPrompt.id)}
                                 >
                                   <Copy size={13} />
                                   复制本次快照
-                                </button>
-                              </details>
+                                </Button>
+                              </Disclosure>
                             </article>
                           ))
                         ) : (
@@ -1819,7 +1850,7 @@ export default function App() {
                   )}
                   <div className="danger-zone">
                     <span>创建于 {date(selectedPrompt.created_at)}</span>
-                    <button
+                    <Button
                       className="link danger"
                       disabled={busy}
                       onClick={async () => {
@@ -1835,7 +1866,7 @@ export default function App() {
                     >
                       <Trash2 size={14} />
                       删除收藏
-                    </button>
+                    </Button>
                   </div>
                 </>
               ) : (
@@ -1843,45 +1874,55 @@ export default function App() {
                   <>
                     <div className="detail-title">
                       <h1>{selectedSkill.name}</h1>
-                      <button
+                      <Button
                         className={`icon-button ${selectedSkill.favorite ? 'is-favorite' : ''}`}
                         aria-label="切换收藏"
                         onClick={() => toggle('skill', selectedSkill.id)}
                       >
                         <Star size={22} fill={selectedSkill.favorite ? 'currentColor' : 'none'} />
-                      </button>
+                      </Button>
                     </div>
                     <p className="preserve description">
                       {selectedSkill.description || '暂无描述'}
                     </p>
                     <Tags items={selectedSkill.tags} />
                     <div className="detail-actions">
-                      <button
+                      <Button
                         className="button primary"
                         disabled={busy}
                         onClick={async () => {
                           const target = await perform<string>('exportSkill', {
                             id: selectedSkill.id,
                           });
-                          if (target) notify(`已复制至 ${target}`);
+                          if (target)
+                            notify(
+                              window.vault
+                                ? `已复制至 ${target}`
+                                : `已下载 ${target}，解压后可放入项目`,
+                            );
                         }}
                       >
                         <Copy size={16} />
-                        复制到项目
-                      </button>
-                      <button
+                        {window.vault ? '复制到项目' : '下载 Skill ZIP'}
+                      </Button>
+                      <Button
                         className="button secondary"
-                        onClick={() => perform('openSkill', { id: selectedSkill.id })}
+                        onClick={async () => {
+                          const result = await perform<string>('openSkill', {
+                            id: selectedSkill.id,
+                          });
+                          if (result && !window.vault) notify('副本目录路径已复制');
+                        }}
                       >
                         <FolderOpen size={16} />
                         打开目录
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         className="button secondary"
                         onClick={() => setModal({ type: 'skill', record: selectedSkill })}
                       >
                         编辑信息
-                      </button>
+                      </Button>
                     </div>
                     <section className="detail-section">
                       <h3>来源与版本</h3>
@@ -1906,7 +1947,7 @@ export default function App() {
                       </div>
                       {selectedSkill.source === 'github' && (
                         <div className="update-actions">
-                          <button
+                          <Button
                             className="button secondary"
                             disabled={busy}
                             onClick={async () => {
@@ -1919,9 +1960,9 @@ export default function App() {
                           >
                             <RefreshCw size={14} className={busy ? 'spin' : ''} />
                             检查更新
-                          </button>
+                          </Button>
                           {selectedSkill.latest_commit !== selectedSkill.commit_hash && (
-                            <button
+                            <Button
                               className="button primary"
                               disabled={busy}
                               onClick={async () => {
@@ -1933,7 +1974,7 @@ export default function App() {
                             >
                               <ArrowDownToLine size={15} />
                               更新副本
-                            </button>
+                            </Button>
                           )}
                         </div>
                       )}
@@ -1957,7 +1998,7 @@ export default function App() {
                     </section>
                     <div className="danger-zone">
                       <span>{date(selectedSkill.updated_at)}更新</span>
-                      <button
+                      <Button
                         className="link danger"
                         disabled={busy}
                         onClick={async () => {
@@ -1974,14 +2015,14 @@ export default function App() {
                       >
                         <Trash2 size={14} />
                         移除 Skill
-                      </button>
+                      </Button>
                     </div>
                   </>
                 )
               )}
             </div>
-          </aside>
-        </div>
+          </div>
+        </Drawer>
       )}
       {modal?.type === 'template' ? (
         <TemplateForm
@@ -2037,34 +2078,22 @@ export default function App() {
         />
       ) : null}
       {lightbox && (
-        <div
-          className="lightbox"
-          role="dialog"
-          aria-label="图片大图"
-          onClick={() => setLightbox(null)}
-        >
-          <button className="icon-button" aria-label="关闭大图">
-            <X size={24} />
-          </button>
-          <img src={lightbox.url} alt={lightbox.name} />
-          <span>{lightbox.name}</span>
-        </div>
+        <Image
+          style={{ display: 'none' }}
+          src={lightbox.url}
+          alt={lightbox.name}
+          preview={{
+            open: true,
+            onOpenChange: (open) => {
+              if (!open) setLightbox(null);
+            },
+          }}
+        />
       )}
-      {toast && (
-        <div
-          className={`toast ${toast.error ? 'error' : ''}`}
-          role={toast.error ? 'alert' : 'status'}
-        >
-          {toast.error ? <X size={17} /> : <Check size={17} />}
-          <span>{toast.text}</span>
-          <button aria-label="关闭提示" onClick={() => setToast(null)}>
-            <X size={15} />
-          </button>
-        </div>
-      )}
+      {toast && <Feedback text={toast.text} error={toast.error} onClose={() => setToast(null)} />}
       {busy && (
         <div className="busy-indicator">
-          <LoaderCircle size={13} className="spin" />
+          <Spin size="small" />
           正在处理…
         </div>
       )}

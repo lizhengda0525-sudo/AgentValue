@@ -1,3 +1,4 @@
+import { Button, Input, Textarea, Disclosure, Feedback } from './ui';
 import { useState } from 'react';
 import { ModalShell } from './ModalShell';
 import { resolveTemplate, templateParts, templateVariables } from './template';
@@ -53,7 +54,7 @@ export function TemplateForm({
             <div className="template-original-content">
               {parts.map((part, index) =>
                 part.variable ? (
-                  <button
+                  <Button
                     key={index}
                     type="button"
                     className={`template-slot ${color(part.variable)}`}
@@ -61,7 +62,7 @@ export function TemplateForm({
                     onClick={() => focusField(part.variable!)}
                   >
                     {value(part.variable).trim() ? value(part.variable) : part.text}
-                  </button>
+                  </Button>
                 ) : (
                   <span key={index}>{part.text}</span>
                 ),
@@ -77,7 +78,7 @@ export function TemplateForm({
                     <span className="template-color-dot" aria-hidden="true" />
                     {name}
                   </label>
-                  <textarea
+                  <Textarea
                     id={`template-field-${index}`}
                     required
                     rows={2}
@@ -99,20 +100,21 @@ export function TemplateForm({
           <span aria-live="polite">
             已填写 {names.filter((name) => value(name).trim()).length} / {names.length}
           </span>
-          <button
+          <Button
             className="button secondary"
             type="button"
             disabled={busy}
             onClick={() => setValues({})}
           >
             重置填写
-          </button>
-          <button
+          </Button>
+          <Button
+            type="submit"
             className="button primary"
             disabled={busy || names.some((n) => !value(n).trim()) || preview.length > 200000}
           >
             填写并复制
-          </button>
+          </Button>
         </div>
       </form>
     </ModalShell>
@@ -145,6 +147,14 @@ export function RestoreForm({
           <span>{preview.counts.skills} 个 Skill</span>
           <span>{preview.counts.images} 张图片</span>
           <span>{preview.counts.generations} 次实验</span>
+          {preview.counts.tasks !== undefined && (
+            <>
+              <span>{preview.counts.tasks} 条事项</span>
+              <span>{preview.counts.logs} 段小计</span>
+              <span>{preview.counts.goals} 个目标</span>
+              <span>{preview.counts.reviews} 篇回顾</span>
+            </>
+          )}
         </div>
         <p>
           {preview.verified
@@ -153,21 +163,21 @@ export function RestoreForm({
         </p>
         <p>当前库会先自动备份到数据目录旁的 recovery 文件夹。恢复失败或替换中断时会回退。</p>
         <label className="restore-confirm">
-          <input
+          <Input
             type="checkbox"
             checked={confirmed}
             disabled={busy}
             onChange={(e) => setConfirmed(e.target.checked)}
           />
-          我确认用此备份替换当前收藏库
+          我确认用此备份替换全部助手记录和资产
         </label>
         <div className="form-actions">
-          <button className="button secondary" disabled={busy} onClick={onClose}>
+          <Button className="button secondary" disabled={busy} onClick={onClose}>
             取消
-          </button>
-          <button className="button primary" disabled={busy || !confirmed} onClick={onRestore}>
+          </Button>
+          <Button className="button primary" disabled={busy || !confirmed} onClick={onRestore}>
             {busy ? '正在恢复…' : '确认恢复'}
-          </button>
+          </Button>
         </div>
       </div>
     </ModalShell>
@@ -189,42 +199,42 @@ export function ImageTools({
 }) {
   return (
     <div className="managed-image">
-      <button className="image-view" onClick={onView} aria-label={`查看 ${image.name}`}>
+      <Button className="image-view" onClick={onView} aria-label={`查看 ${image.name}`}>
         <img src={image.thumbnail} loading="lazy" alt={image.name} />
-      </button>
+      </Button>
       <span className="image-name" title={image.name}>
         {image.name}
       </span>
       <div className="image-actions">
-        <button
+        <Button
           disabled={busy}
           onClick={() => onAction('cover')}
           aria-label={`设为封面 ${image.name}`}
         >
           {isCover ? '✓ 封面' : '设为封面'}
-        </button>
-        <button
+        </Button>
+        <Button
           disabled={busy}
           onClick={() => onAction('move', -1)}
           aria-label={`前移 ${image.name}`}
         >
           ←
-        </button>
-        <button
+        </Button>
+        <Button
           disabled={busy}
           onClick={() => onAction('move', 1)}
           aria-label={`后移 ${image.name}`}
         >
           →
-        </button>
-        <button
+        </Button>
+        <Button
           className="danger"
           disabled={busy}
           onClick={() => onAction('delete')}
           aria-label={`移除图片 ${image.name}`}
         >
           移除
-        </button>
+        </Button>
       </div>
     </div>
   );

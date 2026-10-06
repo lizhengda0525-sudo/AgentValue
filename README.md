@@ -1,12 +1,12 @@
 # AgentValue
 
-一个本地 AI 资产收藏工具：Skills、文本 Prompt、图片 Prompt 与生成实验。
+本地管理日程、事项、执行小计、每日回顾，以及 Skills、文本 Prompt、图片 Prompt 与生成实验。
 
 当前交付平台为 **Windows x64**。
 
 ## 直接启动
 
-从 [Releases](https://github.com/lizhengda0525-sudo/AgentValue/releases/latest) 下载 `AgentValue-Setup-*-windows-x64.exe`。安装向导会让你确认或更改安装文件夹；安装后从桌面或开始菜单启动。无需安装 Node.js、Codex 或 API Key。使用 GitHub Skill 导入功能仍需安装 Git。当前源码版本为 **0.3.5**。
+从 [Releases](https://github.com/lizhengda0525-sudo/AgentValue/releases/latest) 下载 `AgentValue-Setup-*-windows-x64.exe`。安装向导会让你确认或更改安装文件夹；安装后从桌面或开始菜单启动。无需安装 Node.js、Codex 或 API Key。使用 GitHub Skill 导入功能仍需安装 Git。当前源码版本为 **2.0.0**，功能见 [V2.0 发布说明](docs/releases/v2.0.0.md)。
 
 从源码打包后，可双击项目根目录的 `Start-AgentValue.vbs` 启动测试用的 `release/win-unpacked/AgentValue.exe`。源码仓库不包含打包产物。
 
@@ -16,6 +16,13 @@
 
 ## 已实现
 
+- 助手：仅填写名称即可创建事项；安排日期、时间、项目、优先级和截止日期；通过列表、看板、时间轴及年/月/周日历查看。
+- 执行：真实专注计时、暂停和重启续计；执行小计支持补录、编辑和删除；跨日计时分别计入各日，暂停时段不计入。
+- 日历交换：ICS 文件导入预览、去重及导出；全天、跨日和重复事件展开。
+- 重复与提醒：完成后创建下一次事项；可开启桌面计划提醒；关闭窗口后驻留托盘，右键退出。Ctrl+Shift+Space 快速录入。
+- 汇总导出：周/月回顾可编辑并导出 Markdown，计划与执行可导出 CSV。
+- 回顾与目标：按当天计划和执行记录生成回顾、保存正文与版本快照、导出 Markdown；月度目标按同项目事项计算进度。
+- 关联工具：事项可关联资产库中的 Prompt 或 Skill，直接打开对应收藏。全部助手记录保存到本机 SQLite，完整备份包含助手记录和资产。
 - 首页：真实数量、最近使用 Prompt、最近添加 Skill、最近图片。
 - 文本：新增、编辑、分类、标签、收藏、删除确认、全文搜索、一键复制。
 - 模板：正文支持 `{{语言}}`、`{{主题}}` 等中文变量；复制时左侧原文与右侧同色填写框实时对应，不修改原始模板。重复变量只填写一次；`\{{变量名}}` 按字面复制，不执行脚本。首版变量均为必填自由文本。
@@ -61,7 +68,11 @@ pnpm package
 
 打包前请关闭当前输出目录中的 AgentValue。`pnpm package` 输出安装包与 `release/latest.yml` 更新信息；CI 在 Windows 上构建、测试并发布同一份安装包。协作约定见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-`pnpm dev` 仅用于前端热更新预览；完整磁盘与剪贴板功能请通过构建后的 Electron 桌面运行。可通过 `AGENTVALUE_DATA_DIR` 指定隔离数据目录，测试脚本已自动设置。
+`pnpm dev` 启动前端热更新与本地后端；`pnpm build` 后执行 `pnpm serve` 启动生产构建，地址为 http://127.0.0.1:5173。开发桌面版和浏览器版默认共享仓库下的 `data/agentvalue.db`，不会填充演示数据。可通过 `AGENTVALUE_DATA_DIR` 指定现有数据目录，测试脚本自动使用隔离目录。安装版沿用原有数据目录和迁移规则。
+
+浏览器支持真实任务、日程、目标、计时、小计、回顾、Prompt、图片上传、Skill 文件夹/GitHub 导入及 ZIP 导出，备份下载为 JSON 文件，可从浏览器上传校验并恢复。桌面版仍使用原来的目录式备份。打开本机文件夹、迁移数据位置、安装和软件更新使用桌面版。浏览器“复制路径”会复制真实目录路径。
+
+助手功能与验收范围见 [本地实现说明](docs/assistant-local-implementation-2026-10-05.md)。
 
 ## V1 范围
 

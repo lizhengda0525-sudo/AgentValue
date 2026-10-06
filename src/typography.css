@@ -1,0 +1,126 @@
+/* One type scale for the workbench, asset library and portal components. */
+@font-face {
+  font-family: 'MiSans';
+  src: url('./assets/fonts/MiSans-Regular.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'MiSans';
+  src: url('./assets/fonts/MiSans-Medium.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'MiSans';
+  src: url('./assets/fonts/MiSans-Semibold.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
+:root {
+  --font-ui: 'MiSans', sans-serif;
+  --text-caption: 13px;
+  --text-body: 14px;
+  --text-reading: 15px;
+  --text-section: 16px;
+  --text-title: 20px;
+  --text-heading: 24px;
+  --text-display: 40px;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --leading-ui: 1.5;
+  --leading-reading: 1.6;
+}
+
+/* Override browser heading defaults without changing the domain layouts. */
+body,
+button,
+input,
+textarea,
+select,
+pre,
+code {
+  font-family: var(--font-ui);
+  font-synthesis: none;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: var(--weight-semibold);
+}
+
+strong,
+b {
+  font-weight: var(--weight-medium);
+}
+
+.av-workbench h1,
+.av-embedded-library .page-heading h1,
+.av-asset-drawer .detail-title h1 {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-semibold);
+  line-height: 1.4;
+}
+
+.av-workbench h2,
+.settings-card h2,
+.section-title h2,
+.detail-section h3 {
+  font-size: var(--text-section);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-ui);
+}
+
+.av-focus-card h3,
+.av-library-embedded .card-body h3,
+.av-detail-section h3 {
+  font-size: var(--text-section);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-ui);
+}
+
+:root .av-ui-button.ant-btn,
+.av-editor label,
+.av-ui-modal .form label,
+.av-ui-modal .import-body > label {
+  font-size: var(--text-body);
+}
+
+.av-ui-input.ant-input::placeholder,
+.av-ui-textarea.ant-input::placeholder {
+  font-size: inherit;
+}
+
+.av-ui-modal h2,
+.av-ui-drawer .ant-drawer-title {
+  font-size: var(--text-title);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-ui);
+}
+
+.card-excerpt,
+.prompt-code,
+.av-journal textarea,
+.av-detail-section textarea,
+.av-review-log-row p {
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
+}
+
+.av-focus-time,
+.av-block-time,
+.av-hour,
+.av-stat strong {
+  font-variant-numeric: tabular-nums;
+}

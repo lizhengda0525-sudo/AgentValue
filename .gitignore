@@ -17,3 +17,5 @@ artifacts/
 *.key
 .DS_Store
 Thumbs.db
+data/
+backups/

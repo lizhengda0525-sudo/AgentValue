@@ -3,6 +3,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { createHash } = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
+const { readAssistant } = require('./assistant-store.cjs');
 const databaseFile = 'agentvalue.db';
 const legacyDatabaseFile = 'agentvault.db';
 const parts = [databaseFile, 'skills', 'images'];
@@ -74,7 +75,7 @@ function inspectBackup(source) {
   ensure(fs.statSync(manifestPath).size < 20 * 1024 ** 2, '备份清单过大');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   ensure(
-    ['AgentValue', 'AgentVault'].includes(manifest.app) && [1, 2].includes(manifest.schema),
+    ['AgentValue', 'AgentVault'].includes(manifest.app) && [1, 2, 3].includes(manifest.schema),
     '不支持的备份格式或版本',
   );
   const sourceDatabase = manifest.app === 'AgentVault' ? legacyDatabaseFile : databaseFile;
@@ -113,6 +114,7 @@ function inspectBackup(source) {
     const generations = db.prepare('SELECT * FROM generations').all();
     const images = db.prepare('SELECT * FROM images').all();
     const skills = db.prepare('SELECT * FROM skills').all();
+    const assistant = version >= 3 ? readAssistant(db) : null;
     const array = (s) => {
       const v = JSON.parse(s);
       ensure(Array.isArray(v) && v.every((x) => typeof x === 'string'), '备份数组字段无效');
@@ -154,6 +156,14 @@ function inspectBackup(source) {
       verified: !!manifest.checksums,
       bytes: contents.bytes,
       counts: {
+        ...(assistant
+          ? {
+              tasks: assistant.tasks.length,
+              logs: assistant.logs.length,
+              goals: assistant.goals.length,
+              reviews: Object.keys(assistant.reviews).length,
+            }
+          : {}),
         prompts: prompts.length,
         skills: skills.length,
         images: images.length,

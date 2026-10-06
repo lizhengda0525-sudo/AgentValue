@@ -212,7 +212,7 @@ test('legacy schema 1 backup migrates while keeping prompt content and images', 
   fs.writeFileSync(path.join(target, 'manifest.json'), JSON.stringify(manifest));
   assert.equal(vault.inspectBackup(target).verified, false);
   await vault.restoreBackup();
-  assert.equal(vault.state().schema, 2);
+  assert.equal(vault.state().schema, 3);
   assert.equal(vault.state().prompts[0].content, '正文');
   assert.equal(vault.state().prompts[0].images.length, 1);
 });

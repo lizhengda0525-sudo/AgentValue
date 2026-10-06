@@ -1,0 +1,97 @@
+{
+  "date": "2026-10-04",
+  "timezone": "Asia/Shanghai",
+  "localBaseline": {
+    "version": "0.3.5",
+    "commit": "3228be0c5e8ca2632abca2f8534f8884edbcd372"
+  },
+  "scope": "Official GitHub repository metadata, selected source files, official product documentation; no reference applications installed or run.",
+  "repositories": [
+    {
+      "name": "super-productivity/super-productivity",
+      "license": "MIT",
+      "archived": false,
+      "pushed_at": "2026-10-03T22:00:59Z",
+      "default_branch": "master"
+    },
+    {
+      "name": "almarklein/timetagger",
+      "license": "GPL-3.0",
+      "archived": false,
+      "pushed_at": "2026-09-28T07:50:32Z",
+      "default_branch": "main"
+    },
+    {
+      "name": "ActivityWatch/activitywatch",
+      "license": "MPL-2.0",
+      "archived": false,
+      "pushed_at": "2026-10-01T13:15:53Z",
+      "default_branch": "master"
+    },
+    {
+      "name": "fullcalendar/fullcalendar",
+      "license": "MIT",
+      "archived": false,
+      "pushed_at": "2026-10-03T04:03:18Z",
+      "default_branch": "main"
+    }
+  ],
+  "sourceChecks": [
+    {
+      "repo": "super-productivity/super-productivity",
+      "commit": "ab46b6a0cf874093be7ea73960b06dac9cee8dbc",
+      "path": "src/app/features/tasks/task.model.ts",
+      "fields": [
+        "timeSpentOnDay",
+        "timeSpent",
+        "timeEstimate",
+        "dueDay",
+        "dueWithTime",
+        "deadlineDay",
+        "deadlineWithTime"
+      ]
+    },
+    {
+      "repo": "almarklein/timetagger",
+      "commit": "6c4f1fc53b8557651e9c32191b3b5b03a4d098b5",
+      "path": "timetagger/app/stores.py",
+      "fields": [
+        "key",
+        "mt",
+        "t1",
+        "t2",
+        "ds"
+      ],
+      "checkedMethods": [
+        "RecordStore.create",
+        "RecordStore.get_records",
+        "RecordStore.get_stats"
+      ]
+    }
+  ],
+  "docs": [
+    "https://github.com/super-productivity/super-productivity",
+    "https://github.com/almarklein/timetagger",
+    "https://github.com/ActivityWatch/activitywatch",
+    "https://vikunja.io/help/tasks/",
+    "https://vikunja.io/",
+    "https://help.sunsama.com/docs/usage-guides/daily-planning/",
+    "https://help.sunsama.com/docs/settings/user-settings/",
+    "https://roadmap.sunsama.com/changelog/weekly-review-20",
+    "https://ticktick.com/features",
+    "https://help.ticktick.com/",
+    "https://www.todoist.com/help/todoist/integrations/use-the-calendar-integration-rCqwLCt3G",
+    "https://product.akiflow.com/help/articles/3677363-time-blocking-101",
+    "https://product.akiflow.com/help/articles/5284502-your-inbox",
+    "https://fullcalendar.io/docs/react",
+    "https://fullcalendar.io/docs/timegrid-view",
+    "https://fullcalendar.io/docs/multimonth-grid",
+    "https://fullcalendar.io/docs/editable",
+    "https://fullcalendar.io/license"
+  ],
+  "limitations": [
+    "No usability benchmark or mobile real-device testing.",
+    "Vikunja GitHub URL vikunja/vikunja returned 404; use the official code.vikunja.io entry linked from its website.",
+    "No subscription pricing comparison; capabilities may vary by product plan and platform."
+  ]
+}
