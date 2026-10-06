@@ -13,8 +13,8 @@ let app;
 try {
   app = await electron.launch({ executablePath: executable, env, timeout: 60000 });
   const page = await app.firstWindow();
-  await page.getByRole('heading', { name: /好灵感，值得被收藏/ }).waitFor();
-  await page.getByRole('button', { name: /^设置/ }).click();
+  await page.getByRole('heading', { name: '今天', exact: true }).waitFor();
+  await page.getByRole('button', { name: '资产库设置', exact: true }).click();
   await page.getByRole('button', { name: '卸载 AgentValue' }).waitFor();
   const status = await page.evaluate(() => window.vault.call('softwareStatus'));
   assert.equal(status.canUninstall, true);
