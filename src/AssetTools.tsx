@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ModalShell } from './ModalShell';
 import { resolveTemplate, templateParts, templateVariables } from './template';
 import type { BackupPreview, Media } from './types';
+import { inCloud } from './sync/workspace';
 
 export function TemplateForm({
   content,
@@ -161,7 +162,11 @@ export function RestoreForm({
             ? '文件完整性校验通过。'
             : '这是旧版备份：数据库与引用文件检查通过，原备份没有文件校验和。'}
         </p>
-        <p>当前库会先自动备份到数据目录旁的 recovery 文件夹。恢复失败或替换中断时会回退。</p>
+        <p>
+          {inCloud()
+            ? '恢复前先下载完整云空间备份。确认后替换云空间内容，并同步到同一账号的其他设备。'
+            : '当前库会先自动备份到数据目录旁的 recovery 文件夹。恢复失败或替换中断时会回退。'}
+        </p>
         <label className="restore-confirm">
           <Input
             type="checkbox"
@@ -200,7 +205,15 @@ export function ImageTools({
   return (
     <div className="managed-image">
       <Button className="image-view" onClick={onView} aria-label={`查看 ${image.name}`}>
-        <img src={image.thumbnail} loading="lazy" alt={image.name} />
+        {image.thumbnail ? (
+          <img src={image.thumbnail} loading="lazy" alt={image.name} />
+        ) : (
+          <span className="av-offline-image">
+            图片待下载
+            <br />
+            联网后点击“立即同步”
+          </span>
+        )}
       </Button>
       <span className="image-name" title={image.name}>
         {image.name}

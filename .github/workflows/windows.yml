@@ -56,6 +56,6 @@ jobs:
           name: AgentValue-windows-x64
           path: |
             release/AgentValue-Setup-*-windows-x64.exe
-            release/latest.yml
+            release/*.yml
             release/*.blockmap
           retention-days: 14

@@ -19,3 +19,4 @@ artifacts/
 Thumbs.db
 data/
 backups/
+dist-mobile/

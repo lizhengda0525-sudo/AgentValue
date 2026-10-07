@@ -46,6 +46,7 @@ import { useAssistant, type Goal } from './persistence';
 import { GoalEditor } from './GoalEditor';
 import { ModalShell } from '../ModalShell';
 import { CalendarTransfer } from './CalendarTransfer';
+import { SyncControl } from '../sync/SyncPanel';
 import { calendarFile } from './calendar-file';
 import { changeTaskStatus, recordsCsv, periodReport, downloadText } from './reports';
 import brandIcon from '../assets/agentvalue-icon.png';
@@ -400,6 +401,15 @@ export default function Workbench({ onOpenLibrary }: { onOpenLibrary?: () => voi
   const timerStarted = useRef<number | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
+    const editing = !!(editor || logEditor || goalEditor || calendarImport || captureTitle);
+    assistant.pauseRemote(editing);
+    const protect = (event: Event) => {
+      if (editing) event.preventDefault();
+    };
+    window.addEventListener('agentvalue-before-switch', protect);
+    return () => window.removeEventListener('agentvalue-before-switch', protect);
+  }, [editor, logEditor, goalEditor, calendarImport, captureTitle]);
+  useEffect(() => {
     if (!assistant.loaded) return;
     const timer = assistant.state.timer;
     timerSegments.current = timer.segments.map((segment) => ({ ...segment }));
@@ -413,7 +423,7 @@ export default function Workbench({ onOpenLibrary }: { onOpenLibrary?: () => voi
           1000,
       ),
     );
-  }, [assistant.loaded]);
+  }, [assistant.loaded, assistant.state.timer]);
   useEffect(() => {
     if (!toast) return;
     const timeout = setTimeout(() => setToast(''), 4000);
@@ -852,7 +862,7 @@ export default function Workbench({ onOpenLibrary }: { onOpenLibrary?: () => voi
               收藏库
             </Button>
           )}
-          <span className="av-top-avatar">达</span>
+          <SyncControl />
         </header>
         <main className={`av-content ${libraryPage ? 'av-hidden' : ''}`}>
           <div className="av-page-heading">

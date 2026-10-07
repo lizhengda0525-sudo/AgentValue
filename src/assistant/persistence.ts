@@ -28,6 +28,8 @@ const empty = (): AssistantState => ({
   timer: { taskId: null, startedAt: null, segments: [] },
 });
 export function useAssistant() {
+  const remotePaused = useRef(false),
+    remoteWaiting = useRef(false);
   const [state, render] = useState<AssistantState>(empty);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState<'loading' | 'saving' | 'saved' | 'error'>('loading');
@@ -94,6 +96,14 @@ export function useAssistant() {
     };
   }, []);
   useEffect(() => {
+    const refresh = () => {
+      if (!remotePaused.current && !dirty.current && !busy.current && !stopped.current) void load();
+      else remoteWaiting.current = true;
+    };
+    window.addEventListener('agentvalue-sync-applied', refresh);
+    return () => window.removeEventListener('agentvalue-sync-applied', refresh);
+  }, []);
+  useEffect(() => {
     const prevent = (event: BeforeUnloadEvent) => {
       if (dirty.current || busy.current) {
         event.preventDefault();
@@ -101,7 +111,14 @@ export function useAssistant() {
       }
     };
     window.addEventListener('beforeunload', prevent);
-    return () => window.removeEventListener('beforeunload', prevent);
+    const protect = (event: Event) => {
+      if (dirty.current || busy.current || stopped.current) event.preventDefault();
+    };
+    window.addEventListener('agentvalue-before-switch', protect);
+    return () => {
+      window.removeEventListener('beforeunload', prevent);
+      window.removeEventListener('agentvalue-before-switch', protect);
+    };
   }, []);
   useEffect(() => {
     const deleted = (event: Event) => {
@@ -156,6 +173,13 @@ export function useAssistant() {
       a.download = 'AgentValue-未保存草稿.json';
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+    pauseRemote: (paused: boolean) => {
+      remotePaused.current = paused;
+      if (!paused && remoteWaiting.current && !dirty.current && !busy.current && !stopped.current) {
+        remoteWaiting.current = false;
+        void load();
+      }
     },
   };
 }

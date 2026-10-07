@@ -10,7 +10,7 @@ function dueReminders(state, now = new Date(), seen = new Set()) {
     }))
     .filter((item) => item.due <= now.getTime() && !seen.has(item.key));
 }
-function checkReminders(vault, notify, now = new Date()) {
+function checkReminders(vault, notify, now = new Date(), prefix = '') {
   vault.db.exec(
     'CREATE TABLE IF NOT EXISTS assistant_reminders (id TEXT PRIMARY KEY, day TEXT NOT NULL)',
   );
@@ -19,13 +19,14 @@ function checkReminders(vault, notify, now = new Date()) {
     vault.db
       .prepare('SELECT id FROM assistant_reminders WHERE day=?')
       .all(day(now))
-      .map((row) => row.id),
+      .filter((row) => row.id.startsWith(prefix))
+      .map((row) => row.id.slice(prefix.length)),
   );
   const pending = dueReminders(state, now, seen);
   if (!pending.length) return 0;
   notify(pending.map(({ task }) => task));
   const insert = vault.db.prepare('INSERT OR IGNORE INTO assistant_reminders VALUES (?,?)');
-  for (const item of pending) insert.run(item.key, day(now));
+  for (const item of pending) insert.run(prefix + item.key, day(now));
   vault.db
     .prepare('DELETE FROM assistant_reminders WHERE day<?')
     .run(day(new Date(now.getTime() - 90 * 86400000)));

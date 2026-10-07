@@ -1,5 +1,6 @@
 import type { Media, Prompt, Skill, State } from './types.ts';
 import { backendCall } from './backend-client.ts';
+import { inCloud } from './sync/workspace.ts';
 
 const seedTime = '2026-10-04T08:00:00.000Z';
 const seedPrompt = (
@@ -104,7 +105,7 @@ type LibraryInput = GenerationInput & {
   action?: string;
 };
 export function assetFilePath(file: File) {
-  if (window.vault) return window.vault.filePath(file);
+  if (window.vault && !inCloud()) return window.vault.filePath(file);
   const url = URL.createObjectURL(file);
   previewFiles.set(url, file.name);
   browserFiles.set(url, file);
@@ -261,7 +262,7 @@ function chooseFiles(directory = false, accept = ''): Promise<File[]> {
   });
 }
 export async function libraryCall<T = unknown>(operation: string, input?: unknown): Promise<T> {
-  if (window.vault) {
+  if (window.vault && !inCloud()) {
     const result = await window.vault.call<T>(operation, input);
     if (operation === 'restoreBackup') window.dispatchEvent(new Event('agentvalue-restored'));
     if (operation === 'delete' && result)
@@ -307,7 +308,10 @@ export async function libraryCall<T = unknown>(operation: string, input?: unknow
     if (!file) return null as T;
     data = { archive: JSON.parse(await file.text()) };
   }
-  if (operation === 'copy') await navigator.clipboard.writeText(data.text || '');
+  if (operation === 'copy') {
+    if (window.vault && inCloud()) await window.vault.call('copy', { text: data.text || '' });
+    else await navigator.clipboard.writeText(data.text || '');
+  }
   const result = await backendCall<any>(operation, data);
   if ((operation === 'openData' || operation === 'openSkill') && typeof result === 'string')
     await navigator.clipboard.writeText(result);

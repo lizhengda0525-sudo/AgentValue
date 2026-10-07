@@ -167,3 +167,21 @@ test('desktop reminders are opt-in, due only today, and persist acknowledgement 
   );
   assert.equal(notified, 1);
 });
+test('cloud reminder acknowledgement is separated from the original workspace and other accounts', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'av-cloud-reminder-')),
+    vault = new Vault(root);
+  t.after(() => {
+    vault.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const state = vault.assistantState();
+  state.tasks = [task({ remind: true })];
+  vault.assistantSave({ state, revision: state.revision });
+  const time = new Date('2026-10-07T09:00:00'),
+    notify = () => {};
+  assert.equal(checkReminders(vault, notify, time), 1);
+  assert.equal(checkReminders(vault, notify, time, 'cloud:a:'), 1);
+  assert.equal(checkReminders(vault, notify, time, 'cloud:a:'), 0);
+  assert.equal(checkReminders(vault, notify, time, 'cloud:b:'), 1);
+  assert.equal(checkReminders(vault, notify, time), 0);
+});

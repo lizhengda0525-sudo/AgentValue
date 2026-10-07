@@ -50,7 +50,13 @@ export type Skill = {
   files: string[];
   updated_at: string;
 };
-export type State = { prompts: Prompt[]; skills: Skill[]; root: string; schema: number };
+export type State = {
+  prompts: Prompt[];
+  skills: Skill[];
+  root: string;
+  schema: number;
+  syncRevision?: string;
+};
 export type SoftwareStatus = {
   phase:
     | 'idle'

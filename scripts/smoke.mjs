@@ -75,6 +75,7 @@ try {
   await page.getByRole('button', { name: '保存收藏', exact: true }).click();
   await page.getByRole('heading', { name: '测试 · 代码审查', exact: true }).waitFor();
   await page.getByRole('button', { name: '复制 测试 · 代码审查', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: '已复制到剪贴板' }).waitFor();
   assert.equal(
     await app.evaluate(({ clipboard }) => clipboard.readText()),
     '请检查并发边界与异常处理。',

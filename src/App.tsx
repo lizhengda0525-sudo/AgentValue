@@ -46,6 +46,7 @@ import {
   X,
 } from 'lucide-react';
 import { ModalShell } from './ModalShell';
+import { inCloud } from './sync/workspace';
 import { ChoiceSelect } from './ChoiceSelect';
 import brandIcon from './assets/agentvalue-icon.png';
 import { libraryCall, assetFilePath, assetFileName } from './library-client';
@@ -652,6 +653,29 @@ export default function App({
   useEffect(() => {
     if (selectedAsset) setDetail(selectedAsset);
   }, [selectedAsset]);
+  const deferredRefresh = useRef(false);
+  useEffect(() => {
+    const refreshAfterSync = () => {
+      if (modal || busyRef.current) {
+        deferredRefresh.current = true;
+        return;
+      }
+      void refresh().catch((error) => notify(error.message, true));
+    };
+    const protect = (event: Event) => {
+      if (modal || busyRef.current) event.preventDefault();
+    };
+    window.addEventListener('agentvalue-sync-applied', refreshAfterSync);
+    window.addEventListener('agentvalue-before-switch', protect);
+    if (!modal && deferredRefresh.current && !busyRef.current) {
+      deferredRefresh.current = false;
+      refreshAfterSync();
+    }
+    return () => {
+      window.removeEventListener('agentvalue-sync-applied', refreshAfterSync);
+      window.removeEventListener('agentvalue-before-switch', protect);
+    };
+  }, [modal, busy]);
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
       if (
@@ -674,11 +698,15 @@ export default function App({
     busyRef.current = true;
     setBusy(true);
     try {
-      if (operation === 'delete' && !window.vault) {
+      if (
+        (operation === 'delete' ||
+          (operation === 'manageImage' && (input as { action?: string })?.action === 'delete')) &&
+        (!window.vault || inCloud())
+      ) {
         const approved = await new Promise<boolean>((resolve) =>
           confirmation.confirm({
-            title: '删除收藏',
-            content: '删除这条本地收藏？',
+            title: operation === 'manageImage' ? '移除图片' : '删除收藏',
+            content: inCloud() ? '删除这条收藏？联网后会同步到其他设备。' : '删除这条本地收藏？',
             okText: '删除',
             cancelText: '取消',
             okButtonProps: { danger: true },
@@ -688,7 +716,10 @@ export default function App({
         );
         if (!approved) return undefined;
       }
-      const result = await call<T>(operation, input);
+      const result = await call<T>(
+        operation,
+        input && typeof input === 'object' ? { ...input, _revision: state.syncRevision } : input,
+      );
       await refresh();
       return result;
     } catch (e) {
@@ -713,7 +744,10 @@ export default function App({
     busyRef.current = true;
     setBusy(true);
     try {
-      await call(op, input);
+      await call(
+        op,
+        input && typeof input === 'object' ? { ...input, _revision: state.syncRevision } : input,
+      );
       await refresh();
       setModal(null);
       notify('Skill 信息已更新');
@@ -825,7 +859,7 @@ export default function App({
         <Button className="card-main" onClick={() => setDetail({ type: 'prompt', id: p.id })}>
           {p.kind === 'image' ? (
             <div className="card-image">
-              {img ? (
+              {img?.thumbnail ? (
                 <img src={img.thumbnail} alt={p.title} loading="lazy" />
               ) : (
                 <div className="image-placeholder">
@@ -1460,8 +1494,8 @@ export default function App({
               <div className="page-heading">
                 <div>
                   <h1>设置</h1>
-                  <p>管理本地数据、备份与软件更新。</p>
-                  {window.vault && (
+                  <p>{inCloud() ? '管理云空间数据和备份。' : '管理本地数据、备份与软件更新。'}</p>
+                  {window.vault && !inCloud() && (
                     <p>Ctrl+Shift+Space 快速录入。关闭窗口后驻留托盘；右键托盘图标可退出软件。</p>
                   )}
                 </div>
@@ -1470,11 +1504,15 @@ export default function App({
                 <div className="section-title">
                   <h2>
                     <Database size={19} />
-                    本地数据
+                    {inCloud() ? '云空间数据' : '本地数据'}
                   </h2>
                   <span className="status-pill">已就绪</span>
                 </div>
-                <p>Prompt 与实验记录保存在 SQLite；图片和 Skill 保存为独立文件。</p>
+                <p>
+                  {inCloud()
+                    ? '事项和资产先保存在本机，联网后同步到同一账号的其他设备。'
+                    : 'Prompt 与实验记录保存在 SQLite；图片和 Skill 保存为独立文件。'}
+                </p>
                 <label>
                   数据目录<div className="path-display">{state.root}</div>
                 </label>
@@ -1482,15 +1520,15 @@ export default function App({
                   className="button secondary"
                   onClick={async () => {
                     const result = await perform<string>('openData');
-                    if (result && !window.vault) notify('数据目录路径已复制');
+                    if (result && (!window.vault || inCloud())) notify(result);
                   }}
                 >
                   <FolderOpen size={16} />
-                  {window.vault ? '打开数据目录' : '复制数据目录路径'}
+                  {inCloud() ? '查看存储说明' : window.vault ? '打开数据目录' : '复制数据目录路径'}
                 </Button>
                 <Button
                   className="button secondary"
-                  disabled={busy || !window.vault}
+                  disabled={busy || !window.vault || inCloud()}
                   onClick={async () => {
                     const target = await perform<string>('chooseDataLocation');
                     if (target) notify('数据已迁移，正在重新打开软件');
@@ -1896,14 +1934,14 @@ export default function App({
                           });
                           if (target)
                             notify(
-                              window.vault
+                              window.vault && !inCloud()
                                 ? `已复制至 ${target}`
                                 : `已下载 ${target}，解压后可放入项目`,
                             );
                         }}
                       >
                         <Copy size={16} />
-                        {window.vault ? '复制到项目' : '下载 Skill ZIP'}
+                        {window.vault && !inCloud() ? '复制到项目' : '下载 Skill ZIP'}
                       </Button>
                       <Button
                         className="button secondary"

@@ -16,6 +16,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { Vault } = require('./store.cjs');
+const { validateAssistant } = require('../shared/assistant-validation.js');
+let cloudReminders = null;
 const { thumbnailService } = require('./thumbnails.cjs');
 const { databaseFile } = require('./backup.cjs');
 const {
@@ -101,6 +103,34 @@ if (!app.requestSingleInstanceLock()) {
             case 'assistantState':
               data = vault.assistantState();
               break;
+            case 'cloudReminderState':
+              if (input.state === null) cloudReminders = null;
+              else {
+                if (
+                  typeof input.namespace !== 'string' ||
+                  !/^[a-f0-9-]{36}@[a-z0-9.]+$/.test(input.namespace)
+                )
+                  throw new Error('云空间编号无效');
+                cloudReminders = {
+                  state: validateAssistant(input.state),
+                  namespace: `cloud:${input.namespace}:`,
+                };
+              }
+              data = true;
+              setImmediate(() => remind());
+              break;
+            case 'syncExport': {
+              if (activeCalls !== 1 || vault.busy.size)
+                throw new Error('请等待其他操作完成后再导入');
+              backupRunning = true;
+              try {
+                const { syncExport } = require('./sync-export.cjs');
+                data = await syncExport(vault, path.join(path.dirname(vault.root), 'backups'));
+              } finally {
+                backupRunning = false;
+              }
+              break;
+            }
             case 'assistantSave':
               data = vault.assistantSave(input);
               setImmediate(() => remind());
@@ -158,7 +188,7 @@ if (!app.requestSingleInstanceLock()) {
             case 'copy':
               if (typeof input.text !== 'string' || input.text.length > 200000)
                 throw new Error('复制内容无效');
-              clipboard.writeText(input.text);
+              await clipboard.writeText(input.text);
               if (input.id) vault.used(input.id);
               break;
             case 'chooseImages': {
@@ -406,18 +436,24 @@ if (!app.requestSingleInstanceLock()) {
 function remind() {
   if (!vault || !win || win.isDestroyed() || backupRunning || !Notification.isSupported()) return;
   try {
-    checkReminders(vault, (tasks) => {
-      const notice = new Notification({
-        title: tasks.length === 1 ? 'AgentValue · 事项提醒' : `AgentValue · ${tasks.length} 项待办`,
-        body: tasks
-          .slice(0, 3)
-          .map((task) => `${task.start || '09:00'} ${task.title}`)
-          .join('\n'),
-        silent: false,
-      });
-      notice.on('click', showWindow);
-      notice.show();
-    });
+    checkReminders(
+      cloudReminders ? { db: vault.db, assistantState: () => cloudReminders.state } : vault,
+      (tasks) => {
+        const notice = new Notification({
+          title:
+            tasks.length === 1 ? 'AgentValue · 事项提醒' : `AgentValue · ${tasks.length} 项待办`,
+          body: tasks
+            .slice(0, 3)
+            .map((task) => `${task.start || '09:00'} ${task.title}`)
+            .join('\n'),
+          silent: false,
+        });
+        notice.on('click', showWindow);
+        notice.show();
+      },
+      new Date(),
+      cloudReminders?.namespace || '',
+    );
   } catch (error) {
     console.error('提醒检查失败：', error.message);
   }

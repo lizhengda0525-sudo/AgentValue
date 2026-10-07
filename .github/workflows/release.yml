@@ -17,6 +17,8 @@ jobs:
     timeout-minutes: 40
     env:
       GH_TOKEN: ${{ github.token }}
+      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -40,6 +42,13 @@ jobs:
         run: pnpm format:check
       - name: Test data and migration
         run: pnpm test
+      - name: Verify cloud build configuration
+        shell: pwsh
+        run: |
+          if ($env:VITE_SUPABASE_URL -notmatch '^https://[a-z0-9]+\.supabase\.co$') { throw 'Missing or invalid public Supabase project URL' }
+          if ($env:VITE_SUPABASE_PUBLISHABLE_KEY -notmatch '^sb_publishable_[A-Za-z0-9_-]+$') { throw 'Missing or invalid Supabase publishable key' }
+      - name: Build independent mobile frontend for sync verification
+        run: pnpm build:mobile
       - name: Build Windows installer and update metadata
         run: pnpm package
       - name: Test packaged desktop app
@@ -47,6 +56,12 @@ jobs:
         run: |
           $env:AGENTVALUE_EXECUTABLE = Join-Path $env:GITHUB_WORKSPACE 'release/win-unpacked/AgentValue.exe'
           pnpm test:ui
+      - name: Test packaged desktop and mobile sync with isolated mock accounts
+        shell: pwsh
+        run: |
+          $env:AGENTVALUE_EXECUTABLE = Join-Path $env:GITHUB_WORKSPACE 'release/win-unpacked/AgentValue.exe'
+          $env:AGENTVALUE_SYNC_NATIVE = '1'
+          pnpm test:sync-ui
       - name: Test install and uninstall data preservation
         shell: pwsh
         run: |
@@ -58,8 +73,9 @@ jobs:
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
           $installer = "release/AgentValue-Setup-$version-windows-x64.exe"
           if (-not (Test-Path $installer)) { throw 'Installer missing' }
-          if (-not (Test-Path 'release/latest.yml')) { throw 'Update metadata missing' }
-          $assets = @($installer, 'release/latest.yml')
+          $updateMetadata = 'release/latest.yml'
+          if (-not (Test-Path -LiteralPath $updateMetadata)) { throw 'Update metadata missing' }
+          $assets = @($installer, $updateMetadata)
           $blockmap = "$installer.blockmap"
           if (Test-Path $blockmap) { $assets += $blockmap }
           $assets | ForEach-Object {
@@ -71,5 +87,6 @@ jobs:
           if (-not (Test-Path -LiteralPath $releaseNotes)) { throw "Release notes missing: $releaseNotes" }
           gh release view $env:GITHUB_REF_NAME *> $null
           if ($LASTEXITCODE -eq 0) { throw 'Release already exists; never overwrite a published version' }
-          gh release create $env:GITHUB_REF_NAME $assets --verify-tag --latest --title "AgentValue $env:GITHUB_REF_NAME" --notes-file $releaseNotes
+          $releaseFlags = if ($version.Contains('-')) { @('--prerelease', '--latest=false') } else { @('--latest') }
+          gh release create $env:GITHUB_REF_NAME $assets --verify-tag @releaseFlags --title "AgentValue $env:GITHUB_REF_NAME" --notes-file $releaseNotes
           if ($LASTEXITCODE -ne 0) { throw 'GitHub release publication failed' }

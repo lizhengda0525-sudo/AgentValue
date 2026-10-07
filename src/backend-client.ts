@@ -1,5 +1,11 @@
+import { cloudWorkspace } from './sync/workspace.ts';
 let session: Promise<string> | undefined;
 export async function backendCall<T = unknown>(operation: string, input?: unknown): Promise<T> {
+  const workspace = cloudWorkspace();
+  if (workspace) return workspace.call<T>(operation, input);
+  return localCall<T>(operation, input);
+}
+export async function localCall<T = unknown>(operation: string, input?: unknown): Promise<T> {
   if (window.vault) return window.vault.call<T>(operation, input);
   session ||= fetch('/api/session')
     .then(async (response) => {

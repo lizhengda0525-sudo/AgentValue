@@ -3,6 +3,8 @@ const allowed = new Set([
   'state',
   'assistantState',
   'assistantSave',
+  'syncExport',
+  'cloudReminderState',
   'savePrompt',
   'addGeneration',
   'favorite',

@@ -75,6 +75,15 @@ function createLocalServer({ root, dist, port = 5173 }) {
       }
       case 'assistantState':
         return vault.assistantState();
+      case 'syncExport': {
+        ensure(active === 1 && !vault.busy.size, '请等待其他操作完成后再导入');
+        maintenance = true;
+        try {
+          return await require('./sync-export.cjs').syncExport(vault, siblingBackups);
+        } finally {
+          maintenance = false;
+        }
+      }
       case 'assistantSave':
         return vault.assistantSave(input);
       case 'savePrompt':
